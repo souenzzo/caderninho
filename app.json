@@ -1,0 +1,9 @@
+{
+  "name": "Caderninho",
+  "description": "This app does one little thing, and does it well.",
+  "success_url": "/hello",
+  "scripts": {
+    "postdeploy": "clojure -m br.com.souenzzo.caderninho"
+  },
+  "image": "heroku/clojure"
+}
