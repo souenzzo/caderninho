@@ -19,6 +19,7 @@
         service {::http/port   port
                  ::http/type   :jetty
                  ::http/join?  false
+                 ::http/host   "0.0.0.0"
                  ::http/routes #{["/*path" :any handler
                                   :route-name ::index*]
                                  ["/" :any handler
