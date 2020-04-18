@@ -8,7 +8,9 @@
 (defonce state (atom nil))
 (defn -main
   [& opts]
+  (prn [:a (new java.util.Date)])
   (let [port (edn/read-string (System/getenv "PORT"))
+        _ (prn [port (new java.util.Date)])
         handler (fn [req]
                   {:body    (binding [*print-namespace-maps* false]
                               (with-out-str (pprint/pprint req)))
@@ -27,4 +29,5 @@
                    (-> service
                        http/default-interceptors
                        http/create-server
-                       http/start)))))
+                       http/start)))
+    (prn [:xx (new java.util.Date)])))
