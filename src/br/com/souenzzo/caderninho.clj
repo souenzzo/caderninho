@@ -92,6 +92,5 @@
                               ::http/join? false
                               ::http/host "0.0.0.0")
                        http/dev-interceptors
-
                        http/create-server
                        http/start)))))
