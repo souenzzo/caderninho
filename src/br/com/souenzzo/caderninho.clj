@@ -119,10 +119,7 @@
                                                                                   [:html
                                                                                    [:head [:title "404"]]
                                                                                    [:body
-                                                                                    (show (assoc request
-                                                                                            :bar [{:foo 1
-                                                                                                   :car #{2 5}}]
-                                                                                            :System/getenv (into {} (System/getenv))))]]))
+                                                                                    (show request)]]))
                                                                   :headers {"Content-Type" (mime/default-mime-types "html")}
                                                                   :status  404}))))}
 
