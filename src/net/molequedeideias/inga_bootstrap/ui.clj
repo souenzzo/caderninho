@@ -45,8 +45,8 @@
 
 (def VSTableBody
   {::inga/query [{::inga/head [::inga/label]}
-                 {::inga/rows [{::inga/columns [::inga/value]
-                                {::inga/forms (::inga/query Form)}}]}]
+                 {::inga/rows [{::inga/columns [::inga/value]}
+                               {::inga/forms (::inga/query Form)}]}]
    ::inga/ui    (fn [{::inga/keys [head rows]}]
                   (list
                     [:thead

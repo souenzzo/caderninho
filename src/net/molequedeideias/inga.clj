@@ -150,20 +150,20 @@
                                                (name ident))})}])
      ::vs-table-body {::head (for [{:keys [dispatch-key]} children]
                                {::label (->label dispatch-key)})
-                      ::rows (for [el edges]
-                               {::columns (for [{:keys [dispatch-key]} children
-                                                :let [{::pc/keys [params]
-                                                       :as       mutation} (get index-mutations dispatch-key)
-                                                      value (get el dispatch-key)]]
-                                            (cond-> {::value (if (keyword? value)
-                                                               (->label value)
-                                                               value)}
-                                                    mutation (assoc ::forms [{::action (str mutation-prefix dispatch-key)
-                                                                              ::inputs (for [param params]
-                                                                                         {::value   (get el param)
-                                                                                          ::name    (str (namespace param)
-                                                                                                         "/" (name param))
-                                                                                          ::hidden? true})}])))})}}))
+                      ::rows (doall (for [el edges]
+                                      {::columns (for [{:keys [dispatch-key]} children
+                                                       :let [{::pc/keys [params]
+                                                              :as       mutation} (get index-mutations dispatch-key)
+                                                             value (get el dispatch-key)]]
+                                                   (cond-> {::value (if (keyword? value)
+                                                                      (->label value)
+                                                                      value)}
+                                                           mutation (assoc ::forms [{::action (str mutation-prefix dispatch-key)
+                                                                                     ::inputs (for [param params]
+                                                                                                {::value   (get el param)
+                                                                                                 ::name    (str (namespace param)
+                                                                                                                "/" (name param))
+                                                                                                 ::hidden? true})}])))}))}}))
 
 (s/fdef data->table
         :args (s/cat :env (s/keys :req [::mutation-prefix
