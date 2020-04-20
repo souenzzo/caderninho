@@ -53,6 +53,12 @@
                       (number? x) [:code
                                    {:style {:background-color "lightblue"}}
                                    (pr-str x)]
+                      (true? x) [:code
+                                 {:style {:background-color "green"}}
+                                 (pr-str x)]
+                      (false? x) [:code
+                                  {:style {:background-color "red"}}
+                                  (pr-str x)]
                       (nil? x) [:code
                                 {:style {:background-color "blue"}}
                                 (pr-str x)]
