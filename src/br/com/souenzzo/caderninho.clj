@@ -22,28 +22,38 @@
 
 (def show (letfn [(show [x]
                     (cond
-                      (map? x) (list
-                                 "{"
-                                 [:table
-                                  [:tbody
-                                   (for [[k v] x]
-                                     [:tr
-                                      [:th (show k)]
-                                      [:td (show v)]])]]
-                                 "}")
-                      (set? x) (list
-                                 "#{"
-                                 [:ul
+                      (map? x) [:div
+                                {:style {:display "flex"}}
+                                [:span "{"]
+                                [:table
+                                 [:tbody
+                                  (for [[k v] x]
+                                    [:tr
+                                     [:th (show k)]
+                                     [:td
+                                      (show v)]])]]
+                                [:span
+                                 {:style {:align-self "flex-end"}}
+                                 "}"]]
+                      (set? x) [:div
+                                {:style {:display "flex"}}
+                                [:span "#{"]
+                                [:ul
+                                 (for [el x]
+                                   [:li (show el)])]
+                                [:span
+                                 {:style {:align-self "flex-end"}}
+                                 "}"]]
+                      (coll? x) [:div
+                                 {:style {:display "flex"}}
+                                 [:span "["]
+                                 [:ol
+                                  {:start 0}
                                   (for [el x]
                                     [:li (show el)])]
-                                 "}")
-                      (coll? x) (list
-                                  "["
-                                  [:ol
-                                   {:start 0}
-                                   (for [el x]
-                                     [:li (show el)])]
-                                  "]")
+                                 [:span
+                                  {:style {:align-self "flex-end"}}
+                                  "]"]]
                       (keyword? x) [:code
                                     {:style {:background-color "fuchsia"}}
                                     (pr-str x)]
