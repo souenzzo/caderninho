@@ -74,7 +74,8 @@
                                           (if (http/response? response)
                                             ctx
                                             (assoc ctx :response {:body    (binding [*print-namespace-maps* false]
-                                                                             (with-out-str (pprint/pprint request)))
+                                                                             (with-out-str (pprint/pprint (assoc request
+                                                                                                            :System/getenv (System/getenv)))))
                                                                   :headers {"Content-Type" "text/plain"}
                                                                   :status  404}))))}
 
