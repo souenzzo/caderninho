@@ -6,8 +6,17 @@
             [net.molequedeideias.inga-bootstrap.pedestal :as bs.pedestal]
             [net.molequedeideias.inga :as inga]
             [com.wsscode.pathom.core :as p]
-            [com.wsscode.pathom.connect :as pc]))
+            [com.wsscode.pathom.connect :as pc])
+  (:import (org.eclipse.jetty.servlet ServletContextHandler)
+           (org.eclipse.jetty.server.handler.gzip GzipHandler)))
 
+(defn context-configurator
+  "Habilitando gzip nas respostas"
+  [^ServletContextHandler context]
+  (let [gzip-handler (GzipHandler.)]
+    (.setExcludedAgentPatterns gzip-handler (make-array String 0))
+    (.setGzipHandler context gzip-handler))
+  context)
 
 (defonce state (atom nil))
 (defn service
@@ -25,7 +34,7 @@
         routes (bs.pedestal/routes
                  {::bs.pedestal/parser   parser
                   ::bs.pedestal/indexes  indexes
-                  ::bs.pedestal/head     {::inga/title    "a"}
+                  ::bs.pedestal/head     {::inga/title "a"}
                   ::bs.pedestal/header   {::inga/title    "a"
                                           ::inga/subtitle "b"}
                   ::bs.pedestal/nav-menu {}
@@ -44,6 +53,9 @@
                    ::inga/join-key           ::foo}])]
     (-> {::http/routes                routes
          ::http/resource-path         "META-INF/resources/webjars"
+         ::http/container-options     {:h2c?                 true
+                                       :context-configurator context-configurator}
+         ::http/secure-headers        {:content-security-policy-settings "script-src-elem 'self'"}
 
          ::http/not-found-interceptor (interceptor/after
                                         ::not-found
