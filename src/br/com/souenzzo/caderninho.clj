@@ -65,7 +65,7 @@
          ::http/container-options     {:h2c?                 true
                                        :context-configurator context-configurator}
          ::http/secure-headers        {:content-security-policy-settings "script-src 'self'"}
-         ::http/enable-session        {}
+         ::http/enable-session        {:cookie-attrs {:same-site :strict}}
          ::http/enable-csrf           {}
          ::http/not-found-interceptor (interceptor/after
                                         ::not-found
