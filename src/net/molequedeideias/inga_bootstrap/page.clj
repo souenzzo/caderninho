@@ -9,6 +9,7 @@
     [:meta {:name "description" :content title}]
     [:meta {:charset "UTF-8"}]
     [:link {:rel "icon" :href favicon}]
+    [:meta {:name "theme-color" :color "orange"}]
     [:script {:src (str resource-prefix "/jquery/3.4.1/dist/jquery.slim.min.js")}]
     [:script {:src (str resource-prefix "/popper.js/1.16.1/dist/umd/popper.min.js")}]
     [:script {:src (str resource-prefix "/bootstrap/4.4.1/dist/js/bootstrap.min.js")}]

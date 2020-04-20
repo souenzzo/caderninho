@@ -35,7 +35,7 @@
         routes (bs.pedestal/routes
                  {::bs.pedestal/parser   parser
                   ::bs.pedestal/indexes  indexes
-                  ::bs.pedestal/head     {::inga/title      "a"
+                  ::bs.pedestal/head     {::inga/title   "Caderninho"
                                           ::inga/favicon (str "data:image/svg+xml;utf8,"
                                                               (h/html
                                                                 [:svg
@@ -45,8 +45,7 @@
                                                                   :height  "16"}
                                                                  [:text {:x "1" :y "13" :fill "royalblue"}
                                                                   "\uD83D\uDCD6"]]))}
-                  ::bs.pedestal/header   {::inga/title    "a"
-                                          ::inga/subtitle "b"}
+                  ::bs.pedestal/header   {::inga/title "Caderninho"}
                   ::bs.pedestal/nav-menu {}
                   ::bs.pedestal/update-request-fn
                                          (fn [req]
@@ -65,8 +64,9 @@
          ::http/resource-path         "META-INF/resources/webjars"
          ::http/container-options     {:h2c?                 true
                                        :context-configurator context-configurator}
-         ::http/secure-headers        {:content-security-policy-settings "script-src-elem 'self'"}
-
+         ::http/secure-headers        {:content-security-policy-settings "script-src 'self'"}
+         ::http/enable-session        {}
+         ::http/enable-csrf           {}
          ::http/not-found-interceptor (interceptor/after
                                         ::not-found
                                         (fn [{:keys [response request]
