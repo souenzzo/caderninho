@@ -72,7 +72,9 @@
                       (nil? x) [:code
                                 {:style {:background-color "blue"}}
                                 (pr-str x)]
-                      :else [:code (pr-str x)]))]
+                      :else [:code
+                             {:style {:background-color "yellow"}}
+                             (pr-str x)]))]
             show))
 
 (defonce state (atom nil))
