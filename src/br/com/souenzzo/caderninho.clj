@@ -6,7 +6,8 @@
             [net.molequedeideias.inga-bootstrap.pedestal :as bs.pedestal]
             [net.molequedeideias.inga :as inga]
             [com.wsscode.pathom.core :as p]
-            [com.wsscode.pathom.connect :as pc])
+            [com.wsscode.pathom.connect :as pc]
+            [hiccup2.core :as h])
   (:import (org.eclipse.jetty.servlet ServletContextHandler)
            (org.eclipse.jetty.server.handler.gzip GzipHandler)))
 
@@ -34,7 +35,16 @@
         routes (bs.pedestal/routes
                  {::bs.pedestal/parser   parser
                   ::bs.pedestal/indexes  indexes
-                  ::bs.pedestal/head     {::inga/title "a"}
+                  ::bs.pedestal/head     {::inga/title      "a"
+                                          ::inga/favicon (str "data:image/svg+xml;utf8,"
+                                                              (h/html
+                                                                [:svg
+                                                                 {:xmlns   "http://www.w3.org/2000/svg"
+                                                                  :viewBox "0 0 16 16"
+                                                                  :width   "16"
+                                                                  :height  "16"}
+                                                                 [:text {:x "1" :y "13" :fill "royalblue"}
+                                                                  "\uD83D\uDCD6"]]))}
                   ::bs.pedestal/header   {::inga/title    "a"
                                           ::inga/subtitle "b"}
                   ::bs.pedestal/nav-menu {}
