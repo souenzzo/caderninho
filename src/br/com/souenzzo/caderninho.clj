@@ -128,11 +128,11 @@
         jdbc-url (System/getenv "JDBC_DATABASE_URL")
         ds (jdbc/get-datasource {:jdbcUrl jdbc-url})]
     (with-open [conn (jdbc/get-connection ds)]
-      (jdbc/transact conn [(slurp (io/resource "schema.sql"))]))
+      (jdbc/execute! conn [(slurp (io/resource "schema.sql"))]))
     (try
       (with-open [conn (jdbc/get-connection ds)]
         (jdbc/execute! conn ["INSERT INTO app_user (id, username)
-                           VALUES (DEFAULT, ?)"
+                              VALUES (DEFAULT, ?)"
                              "souenzzo"]))
       (catch Throwable ex
         (println ex)))
