@@ -35,7 +35,7 @@
 
 (defonce state (atom nil))
 (defn service
-  [_]
+  [env]
   (let [indexes (pc/register {}
                              (concat
                                pc/connect-resolvers
@@ -59,12 +59,13 @@
                   ::bs.pedestal/nav-menu {}
                   ::bs.pedestal/update-request-fn
                                          (fn [req]
-                                           (assoc req
-                                             ::p/reader [p/map-reader
-                                                         pc/reader2
-                                                         pc/open-ident-reader
-                                                         p/env-placeholder-reader]
-                                             ::p/placeholder-prefixes #{">"}))}
+                                           (merge req
+                                                  env
+                                                  {::p/reader               [p/map-reader
+                                                                             pc/reader2
+                                                                             pc/open-ident-reader
+                                                                             p/env-placeholder-reader]
+                                                   ::p/placeholder-prefixes #{">"}}))}
                  [{::inga/path               "/"
                    ::inga/route-name         ::index
                    ::inga/ident-key          :>/a
@@ -151,7 +152,7 @@
     (swap! state (fn [st]
                    (when st
                      (http/stop st))
-                   (-> (service {})
+                   (-> (service {::conn (jdbc/get-connection ds)})
                        (assoc ::http/port port
                               ::http/type :jetty
                               ::http/join? false
