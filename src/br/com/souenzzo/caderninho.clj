@@ -9,7 +9,8 @@
             [hiccup2.core :as h]
             [ring.util.mime-type :as mime]
             [next.jdbc :as jdbc]
-            [clojure.java.io :as io])
+            [clojure.java.io :as io]
+            [net.molequedeideias.inga-bootstrap.ui :as bs.ui])
   (:import (org.eclipse.jetty.servlet ServletContextHandler)
            (org.eclipse.jetty.server.handler.gzip GzipHandler)))
 
@@ -21,17 +22,24 @@
     (.setGzipHandler context gzip-handler))
   context)
 
+(defn register
+  []
+  [(pc/resolver
+     `all-todos
+     {::pc/output [::all-todos]}
+     (fn [{::keys [conn]} input]
+       (let [edges (for [{:app_todo/keys [id note]} (jdbc/execute! conn ["SELECT id, note FROM app_todo"])]
+                     {:app-todo/id   id
+                      :app-todo/note note})]
+         {::all-todos {:edn-query-language.pagination/edges edges}})))])
+
 (defonce state (atom nil))
 (defn service
   [_]
   (let [indexes (pc/register {}
                              (concat
                                pc/connect-resolvers
-                               [(pc/resolver
-                                  `foo
-                                  {::pc/output [::foo]}
-                                  (constantly
-                                    {::foo {:edn-query-language.pagination/edges (map (partial hash-map :a) (range 10))}}))]))
+                               (register)))
         ref-indexes (atom indexes)
         parser (p/parser {::p/plugins [(pc/connect-plugin {::pc/indexes ref-indexes})]})
         routes (bs.pedestal/routes
@@ -60,8 +68,12 @@
                  [{::inga/path               "/"
                    ::inga/route-name         ::index
                    ::inga/ident-key          :>/a
-                   ::inga/display-properties [:a]
-                   ::inga/join-key           ::foo}])
+                   ::inga/display-properties [:app-todo/id
+                                              :app-todo/note]
+                   ::inga/->query            inga/content->table-query
+                   ::inga/->data             inga/data->table
+                   ::inga/->ui               bs.ui/ui-table
+                   ::inga/join-key           ::all-todos}])
         not-found-interceptor (interceptor/after
                                 ::not-found
                                 (fn [{:keys [response request]
