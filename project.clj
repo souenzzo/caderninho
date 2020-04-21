@@ -3,6 +3,8 @@
                  [io.pedestal/pedestal.service "0.5.7"]
                  [edn-query-language/eql "0.0.9"]
                  [hiccup/hiccup "2.0.0-alpha2"]
+                 [seancorfield/next.jdbc "1.0.424"]
+                 [org.postgresql/postgresql "42.2.12"]
                  [com.wsscode/pathom "2.2.31"]
                  [org.webjars.npm/bootstrap "4.4.1"]
                  [org.webjars.npm/jquery "3.4.1"]

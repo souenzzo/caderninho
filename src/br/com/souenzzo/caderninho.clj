@@ -1,14 +1,15 @@
 (ns br.com.souenzzo.caderninho
   (:require [clojure.edn :as edn]
             [io.pedestal.http :as http]
-            [clojure.pprint :as pprint]
             [io.pedestal.interceptor.helpers :as interceptor]
             [net.molequedeideias.inga-bootstrap.pedestal :as bs.pedestal]
             [net.molequedeideias.inga :as inga]
             [com.wsscode.pathom.core :as p]
             [com.wsscode.pathom.connect :as pc]
             [hiccup2.core :as h]
-            [ring.util.mime-type :as mime])
+            [ring.util.mime-type :as mime]
+            [next.jdbc :as jdbc]
+            [clojure.java.io :as io])
   (:import (org.eclipse.jetty.servlet ServletContextHandler)
            (org.eclipse.jetty.server.handler.gzip GzipHandler)))
 
@@ -19,63 +20,6 @@
     (.setExcludedAgentPatterns gzip-handler (make-array String 0))
     (.setGzipHandler context gzip-handler))
   context)
-
-(def show (letfn [(show [x]
-                    (cond
-                      (map? x) [:div
-                                {:style {:display "flex"}}
-                                [:span "{"]
-                                [:table
-                                 [:tbody
-                                  (for [[k v] x]
-                                    [:tr
-                                     [:th (show k)]
-                                     [:td
-                                      (show v)]])]]
-                                [:span
-                                 {:style {:align-self "flex-end"}}
-                                 "}"]]
-                      (set? x) [:div
-                                {:style {:display "flex"}}
-                                [:span "#{"]
-                                [:ul
-                                 (for [el x]
-                                   [:li (show el)])]
-                                [:span
-                                 {:style {:align-self "flex-end"}}
-                                 "}"]]
-                      (coll? x) [:div
-                                 {:style {:display "flex"}}
-                                 [:span "["]
-                                 [:ol
-                                  {:start 0}
-                                  (for [el x]
-                                    [:li (show el)])]
-                                 [:span
-                                  {:style {:align-self "flex-end"}}
-                                  "]"]]
-                      (keyword? x) [:code
-                                    {:style {:background-color "fuchsia"}}
-                                    (pr-str x)]
-                      (string? x) [:code
-                                   {:style {:background-color "lightgreen"}}
-                                   (pr-str x)]
-                      (number? x) [:code
-                                   {:style {:background-color "lightblue"}}
-                                   (pr-str x)]
-                      (true? x) [:code
-                                 {:style {:background-color "green"}}
-                                 (pr-str x)]
-                      (false? x) [:code
-                                  {:style {:background-color "red"}}
-                                  (pr-str x)]
-                      (nil? x) [:code
-                                {:style {:background-color "blue"}}
-                                (pr-str x)]
-                      :else [:code
-                             {:style {:background-color "yellow"}}
-                             (pr-str x)]))]
-            show))
 
 (defonce state (atom nil))
 (defn service
@@ -117,7 +61,22 @@
                    ::inga/route-name         ::index
                    ::inga/ident-key          :>/a
                    ::inga/display-properties [:a]
-                   ::inga/join-key           ::foo}])]
+                   ::inga/join-key           ::foo}])
+        not-found-interceptor (interceptor/after
+                                ::not-found
+                                (fn [{:keys [response request]
+                                      :as   ctx}]
+                                  (if (http/response? response)
+                                    ctx
+                                    (assoc ctx :response {:body    (str (h/html
+                                                                          {:mode :html}
+                                                                          (h/raw "<!DOCTYPE html>")
+                                                                          [:html
+                                                                           [:head [:title "404"]]
+                                                                           [:body
+                                                                            (inga/show request)]]))
+                                                          :headers {"Content-Type" (mime/default-mime-types "html")}
+                                                          :status  404}))))]
     (-> {::http/routes                routes
          ::http/resource-path         "META-INF/resources/webjars"
          ::http/container-options     {:h2c?                 true
@@ -125,22 +84,7 @@
          ::http/secure-headers        {:content-security-policy-settings "script-src 'self'"}
          ::http/enable-session        {:cookie-attrs {:same-site :strict}}
          ::http/enable-csrf           {}
-         ::http/not-found-interceptor (interceptor/after
-                                        ::not-found
-                                        (fn [{:keys [response request]
-                                              :as   ctx}]
-                                          (if (http/response? response)
-                                            ctx
-                                            (assoc ctx :response {:body    (str (h/html
-                                                                                  {:mode :html}
-                                                                                  (h/raw "<!DOCTYPE html>")
-                                                                                  [:html
-                                                                                   [:head [:title "404"]]
-                                                                                   [:body
-                                                                                    (show request)]]))
-                                                                  :headers {"Content-Type" (mime/default-mime-types "html")}
-                                                                  :status  404}))))}
-
+         ::http/not-found-interceptor not-found-interceptor}
         http/default-interceptors)))
 
 (defn -main
@@ -180,7 +124,18 @@
      "SPRING_DATASOURCE_PASSWORD" "xxxx",
      "PORT"                       "13340",
      "TELEGRAM_API_TOKEN"         "222:xxxx"})
-  (let [port (edn/read-string (System/getenv "PORT"))]
+  (let [port (edn/read-string (System/getenv "PORT"))
+        jdbc-url (System/getenv "JDBC_DATABASE_URL")
+        ds (jdbc/get-datasource {:jdbcUrl jdbc-url})]
+    (with-open [conn (jdbc/get-connection ds)]
+      (jdbc/transact conn [(slurp (io/resource "schema.sql"))]))
+    (try
+      (with-open [conn (jdbc/get-connection ds)]
+        (jdbc/execute! conn ["INSERT INTO app_user (id, username)
+                           VALUES (DEFAULT, ?)"
+                             "souenzzo"]))
+      (catch Throwable ex
+        (println ex)))
     (swap! state (fn [st]
                    (when st
                      (http/stop st))

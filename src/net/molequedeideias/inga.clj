@@ -3,6 +3,64 @@
             [com.wsscode.pathom.connect :as pc]
             [clojure.spec.alpha :as s]))
 
+(def show (letfn [(show [x]
+                    (cond
+                      (map? x) [:div
+                                {:style {:display "flex"}}
+                                [:span "{"]
+                                [:table
+                                 [:tbody
+                                  (for [[k v] x]
+                                    [:tr
+                                     [:th (show k)]
+                                     [:td
+                                      (show v)]])]]
+                                [:span
+                                 {:style {:align-self "flex-end"}}
+                                 "}"]]
+                      (set? x) [:div
+                                {:style {:display "flex"}}
+                                [:span "#{"]
+                                [:ul
+                                 (for [el x]
+                                   [:li (show el)])]
+                                [:span
+                                 {:style {:align-self "flex-end"}}
+                                 "}"]]
+                      (coll? x) [:div
+                                 {:style {:display "flex"}}
+                                 [:span "["]
+                                 [:ol
+                                  {:start 0}
+                                  (for [el x]
+                                    [:li (show el)])]
+                                 [:span
+                                  {:style {:align-self "flex-end"}}
+                                  "]"]]
+                      (keyword? x) [:code
+                                    {:style {:background-color "fuchsia"}}
+                                    (pr-str x)]
+                      (string? x) [:code
+                                   {:style {:background-color "lightgreen"}}
+                                   (pr-str x)]
+                      (number? x) [:code
+                                   {:style {:background-color "lightblue"}}
+                                   (pr-str x)]
+                      (true? x) [:code
+                                 {:style {:background-color "green"}}
+                                 (pr-str x)]
+                      (false? x) [:code
+                                  {:style {:background-color "red"}}
+                                  (pr-str x)]
+                      (nil? x) [:code
+                                {:style {:background-color "blue"}}
+                                (pr-str x)]
+                      :else [:code
+                             {:style {:background-color "yellow"}}
+                             (pr-str x)]))]
+            show))
+
+
 (defn distinct-by
   [pred]
   (fn [rf]
