@@ -21,9 +21,10 @@
                                                         query-params))))))
 
 (defn enter-request->query
-  [{:keys [request]
-    :as   context}]
-  (let [query (inga/content->table-query request)]
+  [{{::keys [->query]} :request
+    :keys              [request]
+    :as                context}]
+  (let [query (->query request)]
     (assoc-in context [:request ::query] query)))
 
 (defn enter-fetch-data
@@ -52,41 +53,49 @@
                  :status  200})
     context))
 (defn enter-data->table
-  [{{::keys [data]} :request
-    :keys           [request]
-    :as             context}]
-  (let [table (inga/data->table request data)]
+  [{{::keys [data ->data]} :request
+    :keys                  [request]
+    :as                    context}]
+  (let [table (->data request data)]
     (assoc-in context [:request ::table] table)))
 
 (defn enter-render
-  [{{::keys [table]} :request
-    :as              context}]
+  [{{::keys [table ->ui]} :request
+    :as                   context}]
   (assoc context
-    :response {:body   (bs.ui/ui-table table)
+    :response {:body   (->ui table)
                :status 200}))
 
 (defn stack
-  [{::keys [parser indexes head header nav-menu update-request-fn]} page]
-  [{:name  ::create-env
-    :enter (fn [context]
-             (-> context
-                 (update :request
-                         #(-> %
-                              (assoc
-                                ::pc/indexes indexes
-                                ::head head
-                                ::header header
-                                ::nav-menu nav-menu
-                                ::parser parser)
-                              (merge page)))))}
-   {:name  ::update-request-fn
-    :enter (fn [ctx] (update ctx :request update-request-fn))}
-   {:name ::params :enter enter-params}
-   {:name ::request->query :enter enter-request->query}
-   {:name ::fetch-data :enter enter-fetch-data}
-   {:name ::hiccup->html :leave leave-hiccup->html}
-   {:name ::data->table :enter enter-data->table}
-   {:name ::render :enter enter-render}])
+  [{::keys [parser indexes head header nav-menu update-request-fn]}
+   {::inga/keys [->data ->query ->ui]
+    :as         page}]
+  (let [->data (requiring-resolve ->data)
+        ->query (requiring-resolve ->query)
+        ->ui (requiring-resolve ->ui)]
+    [{:name  ::create-env
+      :enter (fn [context]
+               (-> context
+                   (update :request
+                           #(-> %
+                                (assoc
+                                  ::pc/indexes indexes
+                                  ::head head
+                                  ::header header
+                                  ::->data ->data
+                                  ::->query ->query
+                                  ::->ui ->ui
+                                  ::nav-menu nav-menu
+                                  ::parser parser)
+                                (merge page)))))}
+     {:name  ::update-request-fn
+      :enter (fn [ctx] (update ctx :request update-request-fn))}
+     {:name ::params :enter enter-params}
+     {:name ::request->query :enter enter-request->query}
+     {:name ::fetch-data :enter enter-fetch-data}
+     {:name ::hiccup->html :leave leave-hiccup->html}
+     {:name ::data->table :enter enter-data->table}
+     {:name ::render :enter enter-render}]))
 
 (defn routes
   [env pages]

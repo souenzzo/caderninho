@@ -71,9 +71,9 @@
                    ::inga/ident-key          :>/a
                    ::inga/display-properties [:app-todo/id
                                               :app-todo/note]
-                   ::inga/->query            inga/content->table-query
-                   ::inga/->data             inga/data->table
-                   ::inga/->ui               bs.ui/ui-table
+                   ::inga/->query            `inga/content->table-query
+                   ::inga/->data             `inga/data->table
+                   ::inga/->ui               `bs.ui/ui-table
                    ::inga/join-key           ::all-todos}])
         not-found-interceptor (interceptor/after
                                 ::not-found
@@ -114,14 +114,14 @@
      "JVM_OPTS"                   "-Xmx300m -Xss512k -XX:CICompilerCount=2 -Dfile.encoding=UTF-8 ",
      "JDBC_DATABASE_USERNAME"     "xxxx",
      "JDBC_DATABASE_PASSWORD"     "xxx",
-     "DATABASE_URL"               "postgres://xxx:xxxx@ec2.compute-1.amazonaws.com:5432/xxxx",
+     "DATABASE_URL"               "postgres://xxx:xxxx@ec2.compute.amazonaws.com:5432/xxxx",
      "PATH"                       "/app/.heroku/apt/usr/bin:/app/.heroku/bin:/app/.jdk/bin:/app/.heroku/nodejs/bin:/app/.heroku/clj/bin:/app/.jdk/bin:/app/.lein/bin:/usr/local/bin:/usr/bin:/bin",
      "INCLUDE_PATH"               "/app/.heroku/apt/usr/include:",
      "RING_ENV"                   "production",
      "TRAMPOLINE_FILE"            "/tmp/lein-trampoline-tUdH5XuQw1QP9",
      "CPATH"                      "/app/.heroku/apt/usr/include:",
      "CPPPATH"                    "/app/.heroku/apt/usr/include:",
-     "JDBC_DATABASE_URL"          "jdbc:postgresql://ec2-52-201-55-4.compute-1.amazonaws.com:5432/d7b6b4vrcit6gd?user=xxx&password=xxx&sslmode=require",
+     "JDBC_DATABASE_URL"          "jdbc:postgresql://ec2.compute.amazonaws.com:5432/xxx?user=xxx&password=xxx&sslmode=require",
      "CLASSPATH"                  "/app/.lein/self-installs/leiningen-2.9.1-standalone.jar",
      "JAVA_HOME"                  "/app/.jdk",
      "SCREENDIR"                  "/app/.heroku/apt/var/run/screen",
@@ -130,7 +130,7 @@
      "LEIN_JAVA_CMD"              "java",
      "LD_LIBRARY_PATH"            "/app/.jdk/jre/lib/amd64/server:/app/.jdk/jre/lib/amd64:/app/.jdk/jre/../lib/amd64:/app/.heroku/apt/usr/lib/x86_64-linux-gnu:/app/.heroku/apt/usr/lib/i386-linux-gnu:/app/.heroku/apt/usr/lib:/app/.jdk/jre/lib/amd64/server:",
      "SPRING_DATASOURCE_USERNAME" "xxx",
-     "SPRING_DATASOURCE_URL"      "jdbc:postgresql://ec2.compute-1.amazonaws.com:5432/xxx?user=xxx&password=xxx&sslmode=require",
+     "SPRING_DATASOURCE_URL"      "jdbc:postgresql://ec2.compute.amazonaws.com:5432/xxx?user=xxx&password=xxx&sslmode=require",
      "LEIN_JVM_OPTS"              "-Xverify:none -XX:+TieredCompilation -XX:TieredStopAtLevel=1",
      "SHLVL"                      "1",
      "PYTHONPATH"                 "/app/.heroku/apt/usr/lib/python2.7/dist-packages",
