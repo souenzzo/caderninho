@@ -71,10 +71,10 @@
                                                                           [:text {:x "1" :y "13" :fill "royalblue"}
                                                                            "\uD83D\uDCD6"]]))}
                   ::bs.pedestal/header            {::inga/title "Caderninho"}
-                  ::bs.pedestal/nav-menu          {::inga/links [{::href  "/"
-                                                                  ::label "home"}
-                                                                 {::href  "/new"
-                                                                  ::label "new"}]}
+                  ::bs.pedestal/nav-menu          {::inga/links [{::inga/href  "/"
+                                                                  ::inga/label "home"}
+                                                                 {::inga/href  "/new"
+                                                                  ::inga/label "new"}]}
                   ::bs.pedestal/update-request-fn (fn [req]
                                                     (merge req
                                                            env
