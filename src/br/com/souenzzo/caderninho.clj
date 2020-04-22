@@ -56,7 +56,10 @@
                                                                  [:text {:x "1" :y "13" :fill "royalblue"}
                                                                   "\uD83D\uDCD6"]]))}
                   ::bs.pedestal/header   {::inga/title "Caderninho"}
-                  ::bs.pedestal/nav-menu {}
+                  ::bs.pedestal/nav-menu {::inga/links [{::href  "/"
+                                                         ::label "home"}
+                                                        {::href  "/new"
+                                                         ::label "new"}]}
                   ::bs.pedestal/update-request-fn
                                          (fn [req]
                                            (merge req
@@ -70,6 +73,16 @@
                    ::inga/route-name         ::index
                    ::inga/ident-key          :>/a
                    ::inga/display-properties [:app-todo/id
+                                              :app-todo/note]
+                   ::inga/->query            `inga/content->table-query
+                   ::inga/->data             `inga/data->table
+                   ::inga/->ui               `bs.ui/ui-table
+                   ::inga/join-key           ::all-todos}
+                  {::inga/path               "/new"
+                   ::inga/route-name         ::new
+                   ::inga/ident-key          :>/a
+                   ::inga/display-properties [:app-todo/id
+                                              :app-todo/note
                                               :app-todo/note]
                    ::inga/->query            `inga/content->table-query
                    ::inga/->data             `inga/data->table
