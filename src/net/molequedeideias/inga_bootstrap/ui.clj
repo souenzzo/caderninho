@@ -34,7 +34,7 @@
                                     :padding        "3vw"
                                     :flex-direction "column"}}
                            action (assoc :method "POST"
-                                         :enctype "multipart/form-data"
+                                         ;; :enctype "multipart/form-data"
                                          :action action))
                    (map ui-input inputs)
                    (ui-input {::inga/flex-end? true

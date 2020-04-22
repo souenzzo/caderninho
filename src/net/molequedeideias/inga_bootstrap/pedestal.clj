@@ -1,12 +1,11 @@
 (ns net.molequedeideias.inga-bootstrap.pedestal
   (:require [spec-coerce.core :as sc]
-            [com.wsscode.pathom.core :as p]
             [com.wsscode.pathom.connect :as pc]
             [net.molequedeideias.inga :as inga]
-            [net.molequedeideias.inga-bootstrap.ui :as bs.ui]
             [net.molequedeideias.inga-bootstrap.page :as bs.page]
             [ring.util.mime-type :as mime]
-            [hiccup2.core :as h]))
+            [hiccup2.core :as h]
+            [edn-query-language.core :as eql]))
 
 (defn enter-params
   [{{::inga/keys [params-as]
@@ -98,8 +97,44 @@
      {:name ::render :enter enter-render}]))
 
 (defn routes
-  [env pages]
-  (set (for [{::inga/keys [path route-name handler]
-              :as         page} pages]
-         [path :get (or handler (stack env page))
-          :route-name route-name])))
+  [{::keys [mutation-prefix indexes parser update-request-fn]
+    :as    env} pages]
+  (set (conj (for [{::inga/keys [path route-name handler]
+                    :as         page} pages]
+               [path :get (or handler (stack env page))
+                :route-name route-name])
+             [(str mutation-prefix "*dispatch-key") :post
+              [{:name  ::create-env
+                :enter (fn [context]
+                         (-> context
+                             (update :request
+                                     #(-> %
+                                          (assoc
+                                            ::pc/indexes indexes
+                                            ::parser parser)))))}
+               {:name  ::update-request-fn
+                :enter (fn [ctx] (update ctx :request update-request-fn))}
+               {:name  ::mutation
+                :enter (fn [{{:keys [path-params params] :as env} :request
+                             :as                          ctx}]
+                         (let [{:keys [dispatch-key]} path-params
+                               mutation (symbol dispatch-key)
+                               params (into {}
+                                            (for [k (-> indexes (pc/mutation-data mutation) ::pc/params)]
+                                              [k (get params (str (namespace k)
+                                                                  "/"
+                                                                  (name k)))]))
+                               children []
+                               ast {:type     :root,
+                                    :children [{:dispatch-key mutation
+                                                :key          mutation
+                                                :params       params
+                                                :type         :call,
+                                                :query        (eql/ast->query {:type     :root
+                                                                               :children children})
+                                                :children     children}]}
+                               result (parser env (eql/ast->query ast))
+                               response {:status  301
+                                         :headers {"Location" "/"}}]
+                           (assoc ctx :response response)))}]
+              :route-name ::mutation])))

@@ -10,7 +10,8 @@
             [ring.util.mime-type :as mime]
             [next.jdbc :as jdbc]
             [clojure.java.io :as io]
-            [net.molequedeideias.inga-bootstrap.ui :as bs.ui])
+            [net.molequedeideias.inga-bootstrap.ui :as bs.ui]
+            [io.pedestal.http.csrf :as csrf])
   (:import (org.eclipse.jetty.servlet ServletContextHandler)
            (org.eclipse.jetty.server.handler.gzip GzipHandler)))
 
@@ -31,7 +32,19 @@
        (let [edges (for [{:app_todo/keys [id note]} (jdbc/execute! conn ["SELECT id, note FROM app_todo"])]
                      {:app-todo/id   id
                       :app-todo/note note})]
-         {::all-todos {:edn-query-language.pagination/edges edges}})))])
+         {::all-todos {:edn-query-language.pagination/edges edges}})))
+   (pc/resolver
+     `csrf-token
+     {::pc/output [::csrf/anti-forgery-token]}
+     (fn [{::csrf/keys [anti-forgery-token]} _]
+       {::csrf/anti-forgery-token anti-forgery-token}))
+   (pc/mutation
+     `new-todo
+     {::pc/params [:app.todo/note]}
+     (fn [{::keys [conn]} {:app.todo/keys [note]}]
+       (jdbc/execute! conn ["INSERT INTO app_todo (id, note, authed) VALUES (DEFAULT, ?, 1)"
+                            note])
+       {}))])
 
 (defonce state (atom nil))
 (defn service
@@ -41,34 +54,35 @@
                                pc/connect-resolvers
                                (register)))
         ref-indexes (atom indexes)
-        parser (p/parser {::p/plugins [(pc/connect-plugin {::pc/indexes ref-indexes})]})
+        parser (p/parser {::p/plugins [(pc/connect-plugin {::pc/indexes ref-indexes})]
+                          ::p/mutate pc/mutate})
         routes (bs.pedestal/routes
-                 {::bs.pedestal/parser   parser
-                  ::bs.pedestal/indexes  indexes
-                  ::bs.pedestal/head     {::inga/title   "Caderninho"
-                                          ::inga/favicon (str "data:image/svg+xml;utf8,"
-                                                              (h/html
-                                                                [:svg
-                                                                 {:xmlns   "http://www.w3.org/2000/svg"
-                                                                  :viewBox "0 0 16 16"
-                                                                  :width   "16"
-                                                                  :height  "16"}
-                                                                 [:text {:x "1" :y "13" :fill "royalblue"}
-                                                                  "\uD83D\uDCD6"]]))}
-                  ::bs.pedestal/header   {::inga/title "Caderninho"}
-                  ::bs.pedestal/nav-menu {::inga/links [{::href  "/"
-                                                         ::label "home"}
-                                                        {::href  "/new"
-                                                         ::label "new"}]}
-                  ::bs.pedestal/update-request-fn
-                                         (fn [req]
-                                           (merge req
-                                                  env
-                                                  {::p/reader               [p/map-reader
-                                                                             pc/reader2
-                                                                             pc/open-ident-reader
-                                                                             p/env-placeholder-reader]
-                                                   ::p/placeholder-prefixes #{">"}}))}
+                 {::bs.pedestal/parser            parser
+                  ::bs.pedestal/indexes           indexes
+                  ::bs.pedestal/mutation-prefix   "/mutations/"
+                  ::bs.pedestal/head              {::inga/title   "Caderninho"
+                                                   ::inga/favicon (str "data:image/svg+xml;utf8,"
+                                                                       (h/html
+                                                                         [:svg
+                                                                          {:xmlns   "http://www.w3.org/2000/svg"
+                                                                           :viewBox "0 0 16 16"
+                                                                           :width   "16"
+                                                                           :height  "16"}
+                                                                          [:text {:x "1" :y "13" :fill "royalblue"}
+                                                                           "\uD83D\uDCD6"]]))}
+                  ::bs.pedestal/header            {::inga/title "Caderninho"}
+                  ::bs.pedestal/nav-menu          {::inga/links [{::href  "/"
+                                                                  ::label "home"}
+                                                                 {::href  "/new"
+                                                                  ::label "new"}]}
+                  ::bs.pedestal/update-request-fn (fn [req]
+                                                    (merge req
+                                                           env
+                                                           {::p/reader               [p/map-reader
+                                                                                      pc/reader2
+                                                                                      pc/open-ident-reader
+                                                                                      p/env-placeholder-reader]
+                                                            ::p/placeholder-prefixes #{">"}}))}
                  [{::inga/path               "/"
                    ::inga/route-name         ::index
                    ::inga/ident-key          :>/a
@@ -78,16 +92,14 @@
                    ::inga/->data             `inga/data->table
                    ::inga/->ui               `bs.ui/ui-table
                    ::inga/join-key           ::all-todos}
-                  {::inga/path               "/new"
-                   ::inga/route-name         ::new
-                   ::inga/ident-key          :>/a
-                   ::inga/display-properties [:app-todo/id
-                                              :app-todo/note
-                                              :app-todo/note]
-                   ::inga/->query            `inga/content->table-query
-                   ::inga/->data             `inga/data->table
-                   ::inga/->ui               `bs.ui/ui-table
-                   ::inga/join-key           ::all-todos}])
+                  {::inga/path            "/new"
+                   ::inga/route-name      ::new
+                   ::inga/mutation        `new-todo
+                   ::inga/mutation-prefix "/mutations/"
+                   ::inga/mutation-token  `[(::csrf/anti-forgery-token {:pathom/as :__anti-forgery-token})]
+                   ::inga/->query         `inga/content->form-query
+                   ::inga/->data          `inga/data->form
+                   ::inga/->ui            `bs.ui/ui-form}])
         not-found-interceptor (interceptor/after
                                 ::not-found
                                 (fn [{:keys [response request]

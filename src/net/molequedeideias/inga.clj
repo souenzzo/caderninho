@@ -143,11 +143,13 @@
                                         ::pc/indexes])))
 
 (defn content->form-query
-  [{::keys []}]
+  [{::keys [mutation-token]}]
   (-> {:type     :root
-       :children [{:type         :prop
-                   :dispatch-key ::pc/indexes
-                   :key          ::pc/indexes}]}
+       :children (concat [{:type         :prop
+                           :dispatch-key ::pc/indexes
+                           :key          ::pc/indexes}]
+                         (when mutation-token
+                           (:children (eql/query->ast mutation-token))))}
       eql/ast->query))
 
 (s/fdef content->form-query
@@ -155,6 +157,7 @@
 
 (defn data->form
   [{::keys [mutation
+            mutation-token
             mutation-prefix]
     :as    env}
    {::pc/keys [indexes]
@@ -162,11 +165,20 @@
   (let [{::pc/keys [index-mutations]} indexes
         {::pc/keys [params]} (get index-mutations mutation)]
     {::action (str mutation-prefix mutation)
-     ::inputs (for [param params]
-                {::value (get data param)
-                 ::label (pr-str param)
-                 ::name  (str (namespace param)
-                              "/" (name param))})}))
+     ::inputs (concat (for [{:keys [dispatch-key params]} (:children (eql/query->ast params))]
+                        {::value (get data dispatch-key)
+                         ::label (pr-str dispatch-key)
+                         ::name  (str (namespace dispatch-key)
+                                      "/" (name dispatch-key))})
+                      (for [{:keys [dispatch-key params]} (:children (eql/query->ast mutation-token))
+                            :let [getter (get params :pathom/as dispatch-key)]]
+                        {::value   (get data getter)
+                         ::label   (pr-str getter)
+                         ::hidden? true
+                         ::name    (if (qualified-ident? getter)
+                                     (str (namespace getter)
+                                          "/" (name getter))
+                                     (name getter))}))}))
 
 (s/fdef data->form
         :args (s/cat :env (s/keys :req [::mutation
