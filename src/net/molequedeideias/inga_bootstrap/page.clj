@@ -1,5 +1,6 @@
 (ns net.molequedeideias.inga-bootstrap.page
-  (:require [net.molequedeideias.inga :as inga]))
+  (:require [net.molequedeideias.inga :as inga]
+            [edn-query-language.core :as eql]))
 
 
 (defn std-head
@@ -73,3 +74,33 @@
        {:style {:padding-left  "1rem"
                 :padding-right "1rem"}}
        label]])])
+
+(defn ->query
+  [{::inga/keys [body] :as env}]
+  (let [children (for [[k {::inga/keys [->query] :as data}] body
+                       :let [->query (requiring-resolve ->query)
+                             query (->query (merge env data))]]
+                   (assoc (eql/query->ast query)
+                     :type :join
+                     :key k
+                     :dispatch-key k
+                     :query query))]
+    (-> {:type     :root,
+         :children children}
+        eql/ast->query)))
+
+(defn ->tree
+  [{::inga/keys [body] :as env} data]
+  (into {}
+        (for [[k {::inga/keys [->data ->ui] :as opts}] body
+              :let [->data (requiring-resolve ->data)]]
+          [k {::->ui ->ui
+              ::tree (->data (merge env opts)
+                             (get data k))}])))
+
+
+(defn ->ui
+  [tree]
+  (for [[k {::keys [->ui tree]}] tree]
+    ((requiring-resolve ->ui)
+     tree)))

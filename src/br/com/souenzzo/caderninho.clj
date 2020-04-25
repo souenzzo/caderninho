@@ -11,6 +11,7 @@
             [next.jdbc :as jdbc]
             [clojure.java.io :as io]
             [net.molequedeideias.inga-bootstrap.ui :as bs.ui]
+            [net.molequedeideias.inga-bootstrap.page :as bs.page]
             [io.pedestal.http.csrf :as csrf])
   (:import (org.eclipse.jetty.servlet ServletContextHandler)
            (org.eclipse.jetty.server.handler.gzip GzipHandler)))
@@ -55,7 +56,7 @@
                                (register)))
         ref-indexes (atom indexes)
         parser (p/parser {::p/plugins [(pc/connect-plugin {::pc/indexes ref-indexes})]
-                          ::p/mutate pc/mutate})
+                          ::p/mutate  pc/mutate})
         routes (bs.pedestal/routes
                  {::bs.pedestal/parser            parser
                   ::bs.pedestal/indexes           indexes
@@ -99,7 +100,26 @@
                    ::inga/mutation-token  `[(::csrf/anti-forgery-token {:pathom/as :__anti-forgery-token})]
                    ::inga/->query         `inga/content->form-query
                    ::inga/->data          `inga/data->form
-                   ::inga/->ui            `bs.ui/ui-form}])
+                   ::inga/->ui            `bs.ui/ui-form}
+                  {::inga/path       "/new2"
+                   ::inga/route-name ::new2
+                   ::inga/head       {}
+                   ::inga/body       {:>/form  {::inga/ident-key          :>/a
+                                                ::inga/display-properties [:app-todo/id
+                                                                           :app-todo/note]
+                                                ::inga/->query            `inga/content->table-query
+                                                ::inga/->data             `inga/data->table
+                                                ::inga/->ui               `bs.ui/ui-table
+                                                ::inga/join-key           ::all-todos}
+                                      :>/query {::inga/mutation        `new-todo
+                                                ::inga/mutation-prefix "/mutations/"
+                                                ::inga/mutation-token  `[(::csrf/anti-forgery-token {:pathom/as :__anti-forgery-token})]
+                                                ::inga/->query         `inga/content->form-query
+                                                ::inga/->data          `inga/data->form
+                                                ::inga/->ui            `bs.ui/ui-form}}
+                   ::inga/->query    `bs.page/->query
+                   ::inga/->data     `bs.page/->tree
+                   ::inga/->ui       `bs.page/->ui}])
         not-found-interceptor (interceptor/after
                                 ::not-found
                                 (fn [{:keys [response request]

@@ -135,6 +135,6 @@
                                                 :children     children}]}
                                result (parser env (eql/ast->query ast))
                                response {:status  301
-                                         :headers {"Location" "/"}}]
+                                         :headers {"Location" (-> env :headers (get "referer" "/"))}}]
                            (assoc ctx :response response)))}]
               :route-name ::mutation])))
