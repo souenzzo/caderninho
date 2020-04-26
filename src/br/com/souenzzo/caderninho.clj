@@ -6,6 +6,7 @@
             [net.molequedeideias.inga :as inga]
             [com.wsscode.pathom.core :as p]
             [com.wsscode.pathom.connect :as pc]
+            [com.wsscode.pathom.viz.ws-connector.core :as p.connector]
             [hiccup2.core :as h]
             [ring.util.mime-type :as mime]
             [next.jdbc :as jdbc]
@@ -55,8 +56,14 @@
                                pc/connect-resolvers
                                (register)))
         ref-indexes (atom indexes)
-        parser (p/parser {::p/plugins [(pc/connect-plugin {::pc/indexes ref-indexes})]
-                          ::p/mutate  pc/mutate})
+        parser (->> (p/parser {::p/plugins [(pc/connect-plugin {::pc/indexes ref-indexes})]
+                               ::p/env     {::p/reader               [p/map-reader
+                                                                      pc/reader3
+                                                                      pc/open-ident-reader
+                                                                      p/env-placeholder-reader]
+                                            ::p/placeholder-prefixes #{">"}}
+                               ::p/mutate  pc/mutate})
+                    (p.connector/connect-parser {::p.connector/parser-id ::id}))
         routes (bs.pedestal/routes
                  {::bs.pedestal/parser            parser
                   ::bs.pedestal/indexes           indexes
@@ -78,12 +85,7 @@
                                                                   ::inga/label "new"}]}
                   ::bs.pedestal/update-request-fn (fn [req]
                                                     (merge req
-                                                           env
-                                                           {::p/reader               [p/map-reader
-                                                                                      pc/reader2
-                                                                                      pc/open-ident-reader
-                                                                                      p/env-placeholder-reader]
-                                                            ::p/placeholder-prefixes #{">"}}))}
+                                                           env))}
                  [{::inga/path               "/"
                    ::inga/route-name         ::index
                    ::inga/ident-key          :>/a
@@ -184,20 +186,20 @@
      "TELEGRAM_API_TOKEN"         "222:xxxx"})
   (let [port (edn/read-string (System/getenv "PORT"))
         jdbc-url (System/getenv "JDBC_DATABASE_URL")
-        ds (jdbc/get-datasource {:jdbcUrl jdbc-url})]
-    (with-open [conn (jdbc/get-connection ds)]
-      (jdbc/execute! conn [(slurp (io/resource "schema.sql"))]))
-    (try
-      (with-open [conn (jdbc/get-connection ds)]
-        (jdbc/execute! conn ["INSERT INTO app_user (id, username)
+        #_#_ds (jdbc/get-datasource {:jdbcUrl jdbc-url})]
+    #_(with-open [conn (jdbc/get-connection ds)]
+        (jdbc/execute! conn [(slurp (io/resource "schema.sql"))]))
+    #_(try
+        (with-open [conn (jdbc/get-connection ds)]
+          (jdbc/execute! conn ["INSERT INTO app_user (id, username)
                               VALUES (DEFAULT, ?)"
-                             "souenzzo"]))
-      (catch Throwable ex
-        (println ex)))
+                               "souenzzo"]))
+        (catch Throwable ex
+          (println ex)))
     (swap! state (fn [st]
                    (when st
                      (http/stop st))
-                   (-> (service {::conn (jdbc/get-connection ds)})
+                   (-> (service {#_#_::conn (jdbc/get-connection ds)})
                        (assoc ::http/port port
                               ::http/type :jetty
                               ::http/join? false
