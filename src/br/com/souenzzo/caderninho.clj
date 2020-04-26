@@ -73,9 +73,16 @@
                                                                            "\uD83D\uDCD6"]]))}
                   ::bs.pedestal/header            {::inga/title "Caderninho"}
                   ::bs.pedestal/nav-menu          {::inga/links [{::inga/href  "/"
-                                                                  ::inga/label "home"}
-                                                                 {::inga/href  "/new"
-                                                                  ::inga/label "new"}]}
+                                                                  ::inga/label "home"}]}
+
+                  ::bs.pedestal/intercept-pages   [{::bs.pedestal/show-when ::not-authed?
+                                                    ::inga/head             {}
+                                                    ::inga/body             {:>/form {::inga/mutation        `login
+                                                                                      ::inga/mutation-prefix "/mutations/"
+                                                                                      ::inga/mutation-token  `[(::csrf/anti-forgery-token {:pathom/as :__anti-forgery-token})]
+                                                                                      ::inga/->query         `inga/content->form-query
+                                                                                      ::inga/->data          `inga/data->form
+                                                                                      ::inga/->ui            `bs.ui/ui-form}}}]
                   ::bs.pedestal/update-request-fn (fn [req]
                                                     (merge req
                                                            env
@@ -84,24 +91,7 @@
                                                                                       pc/open-ident-reader
                                                                                       p/env-placeholder-reader]
                                                             ::p/placeholder-prefixes #{">"}}))}
-                 [{::inga/path               "/"
-                   ::inga/route-name         ::index
-                   ::inga/ident-key          :>/a
-                   ::inga/display-properties [:app-todo/id
-                                              :app-todo/note]
-                   ::inga/->query            `inga/content->table-query
-                   ::inga/->data             `inga/data->table
-                   ::inga/->ui               `bs.ui/ui-table
-                   ::inga/join-key           ::all-todos}
-                  {::inga/path            "/new"
-                   ::inga/route-name      ::new
-                   ::inga/mutation        `new-todo
-                   ::inga/mutation-prefix "/mutations/"
-                   ::inga/mutation-token  `[(::csrf/anti-forgery-token {:pathom/as :__anti-forgery-token})]
-                   ::inga/->query         `inga/content->form-query
-                   ::inga/->data          `inga/data->form
-                   ::inga/->ui            `bs.ui/ui-form}
-                  {::inga/path       "/new2"
+                 [{::inga/path       "/"
                    ::inga/route-name ::new2
                    ::inga/head       {}
                    ::inga/body       {:>/form  {::inga/ident-key          :>/a
