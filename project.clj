@@ -1,5 +1,6 @@
 (defproject br.com.souenzzo/caderninho "0.1.0"
-  :dependencies [[com.wsscode/pathom "2.2.31"]
+  :dependencies [[com.cognitect/transit-clj "1.0.324"]
+                 [com.wsscode/pathom "2.2.31"]
                  [edn-query-language/eql "0.0.9"]
                  [hiccup/hiccup "2.0.0-alpha2"]
                  [io.pedestal/pedestal.jetty "0.5.7"]

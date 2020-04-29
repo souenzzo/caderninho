@@ -3,19 +3,12 @@
             [clojure.test :refer [deftest]]
             [com.wsscode.pathom.connect :as pc]
             [com.wsscode.pathom.core :as p]
-            [cognitect.transit :as t]
-            [hiccup2.core :as h]
             [io.pedestal.http :as http]
-            [io.pedestal.interceptor :as interceptor]
-            [io.pedestal.interceptor.chain :as chain]
             [io.pedestal.test :refer [response-for]]
             [midje.sweet :refer [fact contains => just]]
-            [net.molequedeideias.inga :as inga]
             [net.molequedeideias.inga.pedestal :as inga.pedestal]
-            [net.molequedeideias.inga.page :as inga.page]
             [next.jdbc :as jdbc]
-            [clojure.edn :as edn])
-  (:import (java.io ByteArrayOutputStream)))
+            [net.molequedeideias.inga.transit :as transit]))
 
 (deftest foo
   (let [parser (p/parser {::p/plugins [(pc/connect-plugin {::pc/register (caderninho/register)})]})
@@ -47,8 +40,8 @@
                         ::inga.pedestal/api-path   "/api"
                         ::inga.pedestal/indexes    indexes
                         ::inga.pedestal/parser     parser
-                        ::inga.pedestal/pages      [{::inga.pedestal/path       "/"
-                                                     ::inga.pedestal/route-name ::index
+                        ::inga.pedestal/pages      [{::inga.pedestal/path       "/empty"
+                                                     ::inga.pedestal/route-name ::empty
                                                      ::inga.pedestal/head       {}
                                                      ::inga.pedestal/body       {}}]
                         ::http/enable-csrf         {}
@@ -59,8 +52,11 @@
                        ::http/service-fn)]
     (fact
       (-> (response-for service-fn :post "/api"
-                        :body (inga.pedestal/pr-transit-str [::echo]))
+                        :body (transit/pr-str [::echo]))
           :body
-          inga.pedestal/read-transit-string
+          transit/read-string
           ::echo)
+      => "echo")
+    (fact
+      (response-for service-fn :get "/empty")
       => "echo")))

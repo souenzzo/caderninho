@@ -18,8 +18,8 @@
             [com.wsscode.pathom.connect :as pc]
             [spec-coerce.core :as sc]
             [ring.util.mime-type :as mime]
-            [clojure.java.io :as io])
-  (:import (java.io ByteArrayOutputStream)))
+            [net.molequedeideias.inga.transit :as transit]
+            [clojure.java.io :as io]))
 
 (defn std-interceptors
   [service-map]
@@ -62,31 +62,6 @@
                       [(fn [req] {:status 200 :body (pr-str req)})]])
      :route-name route-name]))
 
-(defn pr-transit
-  [out o {:keys [type]
-          :as   opts}]
-  (t/write (t/writer out type opts)
-           o))
-
-(defn pr-transit-str
-  ([x] (pr-transit-str x {:type :json}))
-  ([x opts]
-   (-> (ByteArrayOutputStream.)
-       (doto (pr-transit x opts))
-       str)))
-
-(defn read-transit
-  [in {:keys [type] :as opts}]
-  (-> (t/reader in type opts)
-      (t/read)))
-
-(defn read-transit-string
-  ([s] (read-transit-string s {:type :json}))
-  ([s opts]
-   (read-transit (io/input-stream (.getBytes s))
-                 opts)))
-
-
 (defn parser-routes
   [{::keys [api-path parser]}]
   (when api-path
@@ -96,11 +71,10 @@
                                               :request
                                               :body
                                               io/input-stream
-                                              (t/reader :json)
-                                              t/read)]
+                                              transit/read)]
                                    (assoc-in ctx [:request ::tx] tx)))
                         :leave (fn [ctx]
-                                 (update-in ctx [:response :body] pr-transit-str))}
+                                 (update-in ctx [:response :body] transit/pr-str))}
                        (fn [{::keys [tx]
                              :as    env}]
                          {:body   (parser env tx)
@@ -109,7 +83,7 @@
 
 (defn default-interceptors
   [{::keys [on-request]
-    :as service-map}]
+    :as    service-map}]
   (let [{::keys [post-router-interceptors
                  pre-router-interceptors]} (std-interceptors service-map)
         routes (into #{}
@@ -119,7 +93,7 @@
         router (router-interceptor (assoc service-map ::http/routes routes))]
     (assoc service-map
       ::http/interceptors (vec (concat pre-router-interceptors
-                                       [(interceptor/interceptor {:name ::on-request
+                                       [(interceptor/interceptor {:name  ::on-request
                                                                   :enter (fn [ctx]
                                                                            (update ctx :request on-request))})
                                         router])))))
