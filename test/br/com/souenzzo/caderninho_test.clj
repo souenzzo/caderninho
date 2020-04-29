@@ -29,23 +29,34 @@
                              register)
         ref-indexes (atom indexes)
         parser (p/parser {::p/plugins [(pc/connect-plugin {::pc/indexes ref-indexes})]})
-        service-fn (-> {::inga.pedestal/on-request (fn [req]
-                                                     (assoc req
-                                                       ::pc/indexes @ref-indexes
-                                                       ::p/reader [p/map-reader
-                                                                   pc/reader2
-                                                                   pc/open-ident-reader
-                                                                   p/env-placeholder-reader]
-                                                       ::p/placeholder-prefixes #{">"}))
-                        ::inga.pedestal/api-path   "/api"
-                        ::inga.pedestal/indexes    indexes
-                        ::inga.pedestal/parser     parser
-                        ::inga.pedestal/pages      [{::inga.pedestal/path       "/empty"
-                                                     ::inga.pedestal/route-name ::empty
-                                                     ::inga.pedestal/head       {}
-                                                     ::inga.pedestal/body       {}}]
-                        ::http/enable-csrf         {}
-                        ::http/enable-session      {}}
+        service-fn (-> {::inga.pedestal/on-request   (fn [req]
+                                                       (assoc req
+                                                         ::pc/indexes @ref-indexes
+                                                         ::p/reader [p/map-reader
+                                                                     pc/reader2
+                                                                     pc/open-ident-reader
+                                                                     p/env-placeholder-reader]
+                                                         ::p/placeholder-prefixes #{">"}))
+                        ::inga.pedestal/api-path     "/api"
+                        ::inga.pedestal/indexes      indexes
+                        ::inga.pedestal/parser       parser
+                        ::inga.pedestal/page->query  (fn [env {::inga.pedestal/keys [head body]}]
+                                                       [{:>/head []}
+                                                        {:>/body []}])
+                        ::inga.pedestal/result->tree (fn [env {:>/keys [head body]}]
+                                                       {::head []
+                                                        ::body []})
+                        ::inga.pedestal/tree->ui     (fn [env {::keys [head body]}]
+                                                       [:html
+                                                        [:head]
+                                                        [:body
+                                                         "ok"]])
+                        ::inga.pedestal/pages        [{::inga.pedestal/path       "/empty"
+                                                       ::inga.pedestal/route-name ::empty
+                                                       ::inga.pedestal/head       {}
+                                                       ::inga.pedestal/body       {}}]
+                        ::http/enable-csrf           {}
+                        ::http/enable-session        {}}
                        inga.pedestal/default-interceptors
                        http/dev-interceptors
                        http/create-servlet

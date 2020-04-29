@@ -1,25 +1,18 @@
 (ns net.molequedeideias.inga.pedestal
-  (:require [io.pedestal.http :as http]
-            [io.pedestal.interceptor.chain :as interceptor.chain]
-            [io.pedestal.http.route.router :as router]
-            [cognitect.transit :as t]
-            [io.pedestal.interceptor.chain :as chain]
-            [io.pedestal.http.cors :as http.cors]
-            [io.pedestal.http.csrf :as http.csrf]
-            [io.pedestal.http.secure-headers :as http.secure-headers]
-            [io.pedestal.http.ring-middlewares :as http.ring-middlewares]
-            [io.pedestal.interceptor :as interceptor]
-            [io.pedestal.http.body-params :as http.body-params]
-            [hiccup2.core :as h]
-            [net.molequedeideias.inga :as inga]
-            [io.pedestal.http.route :as http.route]
-            [clojure.string :as string]
-            [edn-query-language.core :as eql]
+  (:require [clojure.java.io :as io]
             [com.wsscode.pathom.connect :as pc]
-            [spec-coerce.core :as sc]
-            [ring.util.mime-type :as mime]
+            [edn-query-language.core :as eql]
+            [hiccup2.core :as h]
+            [io.pedestal.http :as http]
+            [io.pedestal.http.body-params :as http.body-params]
+            [io.pedestal.http.csrf :as http.csrf]
+            [io.pedestal.http.ring-middlewares :as http.ring-middlewares]
+            [io.pedestal.http.route :as http.route]
+            [io.pedestal.interceptor :as interceptor]
+            [net.molequedeideias.inga :as inga]
             [net.molequedeideias.inga.transit :as transit]
-            [clojure.java.io :as io]))
+            [ring.util.mime-type :as mime]
+            [spec-coerce.core :as sc]))
 
 (defn std-interceptors
   [service-map]
@@ -53,13 +46,58 @@
        first))
 
 (defn page-routes
-  [{::keys [pages]}
+  [{::keys [page->query
+            parser
+            result->tree
+            tree->ui
+            pages]
+    :as    service-map}
    post-router-interceptors]
-  (for [{::keys [route-name path]} pages]
+  (for [{::keys [route-name path] :as page} pages
+        :let [page-kw (partial keyword (str (namespace route-name)
+                                            "."
+                                            (name route-name)))]]
     [path :get (into []
                      cat
                      [post-router-interceptors
-                      [(fn [req] {:status 200 :body (pr-str req)})]])
+
+                      [{:name  (page-kw "inject-env")
+                        :enter (fn [ctx]
+                                 (update ctx :request merge service-map page))}
+                       {:name  (page-kw "page->query")
+                        :enter (fn [ctx]
+                                 (update ctx :request
+                                         (fn [env]
+                                           (assoc env ::query (page->query env page)))))}
+                       {:name  (page-kw "query->result")
+                        :enter (fn [ctx]
+                                 (update ctx :request
+                                         (fn [{::keys [query]
+                                               :as    env}]
+                                           (assoc env ::result (parser env query)))))}
+                       {:name  (page-kw "result->tree")
+                        :enter (fn [ctx]
+                                 (update ctx :request
+                                         (fn [{::keys [result]
+                                               :as    env}]
+                                           (assoc env ::tree (result->tree env result)))))}
+                       {:name  (page-kw "tree->ui")
+                        :enter (fn [ctx]
+                                 (update ctx :request
+                                         (fn [{::keys [tree]
+                                               :as    env}]
+                                           (assoc env ::ui (tree->ui env tree)))))}
+                       {:name  (page-kw "ui->html")
+                        :enter (fn [{{::keys [ui]} :request
+                                     :as           ctx}]
+                                 (let [body (str (h/html
+                                                   {:mode :html}
+                                                   ui))]
+                                   (assoc ctx :response
+                                              {:headers {"Content-Length" (str (count (.getBytes body)))
+                                                         "Content-Type"   (mime/default-mime-types "html")}
+                                               :body    body
+                                               :status  200})))}]])
      :route-name route-name]))
 
 (defn parser-routes
