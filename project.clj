@@ -15,6 +15,7 @@
                  [seancorfield/next.jdbc "1.0.424"]]
   :profiles {:test {:dependencies [[midje/midje "1.9.9"]
                                    [ubergraph "0.8.2"]
+                                   [com.rpl/specter "1.1.3"]
                                    [clj-kondo/clj-kondo "2020.04.05"]
                                    [hickory/hickory "0.7.1"]]}}
   :min-lein-version "2.0.0"

@@ -119,6 +119,27 @@
                           :status 200})]
        :route-name ::api-path]}))
 
+(defn mutation-routes
+  [{::keys [multipart-params-opts parser
+            indexes form-mutation-prefix]} post-router-interceptors]
+  (let [multipart (http.ring-middlewares/multipart-params multipart-params-opts)]
+    (when form-mutation-prefix
+      (for [[sym data] (::pc/index-mutations indexes)]
+        [(str form-mutation-prefix
+              "/"
+              (namespace sym)
+              "/"
+              (name sym))
+         :post
+         (vec (concat
+                [multipart]
+                post-router-interceptors
+                [{:name  (keyword sym)
+                  :enter (fn [ctx]
+                           (parser (:request ctx) `[(~sym {})])
+                           (assoc ctx :response {:status 303 :body "ok"}))}]))
+         :route-name (keyword sym)]))))
+
 (defn default-interceptors
   [{::keys [on-request]
     :as    service-map}]
@@ -127,6 +148,7 @@
         routes (into #{}
                      cat
                      [(page-routes service-map post-router-interceptors)
+                      (mutation-routes service-map post-router-interceptors)
                       (parser-routes service-map)])
         router (router-interceptor (assoc service-map ::http/routes routes))]
     (assoc service-map
