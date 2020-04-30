@@ -138,13 +138,6 @@
           ::current-value)
       => 42)
     (fact
-      (-> (response-for service-fn :post "/api"
-                        :body (transit/pr-str [::current-value]))
-          :body
-          transit/read-string
-          ::current-value)
-      => 42)
-    (fact
       "mutation"
       (response-for service-fn :post (str "/mutation/" csrf "/app/inc")
                     :headers {"Cookie" cookie})

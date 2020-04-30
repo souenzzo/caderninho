@@ -15,6 +15,8 @@
             [ring.util.mime-type :as mime]
             [spec-coerce.core :as sc]))
 
+(def ^:dynamic *request*)
+
 (defn std-interceptors
   [service-map]
   (let [std-interceptors (->> (assoc service-map ::http/routes #{})
@@ -28,13 +30,24 @@
                                       ::http.csrf/anti-forgery}
                                     :name)
                                   std-interceptors)
-     ::post-router-interceptors (filter
-                                  (comp
-                                    #{::http.ring-middlewares/session
-                                      ::http.body-params/body-params
-                                      ::http.csrf/anti-forgery}
-                                    :name)
-                                  std-interceptors)}))
+     ::post-router-interceptors (map
+                                  (fn [{:keys [enter leave name] :as i}]
+                                    (if (= name ::http.ring-middlewares/session)
+                                      (-> i
+                                          (assoc :enter (fn [{:keys [request] :as ctx}]
+                                                          (binding [*request* request]
+                                                            (enter ctx))))
+                                          (assoc :leave (fn [{:keys [request] :as ctx}]
+                                                          (binding [*request* request]
+                                                            (leave ctx)))))
+                                      i))
+                                  (filter
+                                    (comp
+                                      #{::http.ring-middlewares/session
+                                        ::http.body-params/body-params
+                                        ::http.csrf/anti-forgery}
+                                      :name)
+                                    std-interceptors))}))
 
 (defn router-interceptor
   [service-map]
@@ -142,15 +155,15 @@
          :route-name (keyword sym)]))))
 
 (defn session-store
-  [{::keys [parser on-request session-key-ident session-data-ident session-write-sym]}]
+  [{::keys [parser  session-key-ident session-data-ident session-write-sym]}]
   (reify session.store/SessionStore
     (read-session [_ key]
-      (-> (parser (on-request {})
+      (-> (parser *request*
                   [{[session-key-ident key] [session-data-ident]}])
           (get-in [[session-key-ident key]
                    session-data-ident])))
     (write-session [_ key data]
-      (-> (parser (on-request {})
+      (-> (parser *request*
                   `[{(~session-write-sym ~{session-key-ident  key
                                            session-data-ident data})
                      ~[session-key-ident]}])
