@@ -11,11 +11,13 @@
             [next.jdbc :as jdbc]
             [net.molequedeideias.inga.transit :as transit]
             [clojure.string :as string]
+            [ring.middleware.session.store :as session.store]
             [hickory.core :as hickory]
             [io.pedestal.http.csrf :as csrf]
             [io.pedestal.interceptor :as interceptor])
   (:import (java.net URLEncoder URLDecoder)
-           (java.nio.charset StandardCharsets)))
+           (java.nio.charset StandardCharsets)
+           (java.util UUID)))
 
 (deftest foo
   (let [parser (p/parser {::p/plugins [(pc/connect-plugin {::pc/register (caderninho/register)})]})
@@ -32,11 +34,37 @@
 
 (deftest http-default
   (let [state (atom 42)
+        sessions (atom {})
         register [(pc/resolver
+                    `read-token
+                    {::pc/output [::read-token]}
+                    (fn [env input]
+                      {::read-token (-> env
+                                        :path-params
+                                        :csrf
+                                        str
+                                        (URLDecoder/decode StandardCharsets/UTF_8))}))
+                  (pc/resolver
+                    `session-values
+                    {::pc/input  #{::session-key}
+                     ::pc/output [::session-values]}
+                    (fn [_ {::keys [session-key]}]
+                      {::session-values (get @sessions session-key)}))
+                  (pc/resolver
                     `current-value
                     {::pc/output [::current-value]}
                     (fn [env input]
                       {::current-value @state}))
+                  (pc/mutation
+                    `write-sesison
+                    {::pc/params [::session-key
+                                  ::session-values]}
+                    (fn [_ {::keys [session-key
+                                    session-values]}]
+                      (let [session-key (or session-key
+                                            (str (UUID/randomUUID)))]
+                        (swap! sessions assoc session-key session-values)
+                        {::session-key session-key})))
                   (pc/mutation
                     `app/inc
                     {}
@@ -47,18 +75,23 @@
         ref-indexes (atom indexes)
         parser (p/parser {::p/mutate  pc/mutate
                           ::p/plugins [(pc/connect-plugin {::pc/indexes ref-indexes})]})
-        service-fn (-> {::inga.pedestal/on-request           (fn [req]
-                                                               (assoc req
-                                                                 ::pc/indexes @ref-indexes
-                                                                 ::p/reader [p/map-reader
-                                                                             pc/reader2
-                                                                             pc/open-ident-reader
-                                                                             p/env-placeholder-reader]
-                                                                 ::p/placeholder-prefixes #{">"}))
+        on-request (fn [req]
+                     (assoc req
+                       ::pc/indexes @ref-indexes
+                       ::p/reader [p/map-reader
+                                   pc/reader2
+                                   pc/open-ident-reader
+                                   p/env-placeholder-reader]
+                       ::p/placeholder-prefixes #{">"}))
+        service-fn (-> {::inga.pedestal/on-request           on-request
                         ::inga.pedestal/api-path             "/api"
                         ::inga.pedestal/form-mutation-prefix "/mutation/:csrf"
                         ::inga.pedestal/indexes              indexes
                         ::inga.pedestal/parser               parser
+                        ::inga.pedestal/read-token           ::read-token
+                        ::inga.pedestal/session-key-ident    ::session-key
+                        ::inga.pedestal/session-data-ident   ::session-values
+                        ::inga.pedestal/session-write-sym    `write-sesison
                         ::inga.pedestal/page->query          (fn [env {::inga.pedestal/keys [head body]}]
                                                                [{:>/head []}
                                                                 {:>/body []}])
@@ -74,8 +107,6 @@
                                                                ::inga.pedestal/route-name ::empty
                                                                ::inga.pedestal/head       {}
                                                                ::inga.pedestal/body       {}}]
-                        ::http/enable-csrf                   {:read-token #(-> % :path-params :csrf str
-                                                                               (URLDecoder/decode StandardCharsets/UTF_8))}
                         ::http/not-found-interceptor         (interceptor/interceptor
                                                                {:name  ::not-found
                                                                 :leave (fn [{:keys [response request]
@@ -86,8 +117,7 @@
                                                                                                  :body   (pr-str
                                                                                                            (select-keys request
                                                                                                                         [:path-params
-                                                                                                                         :path-info]))})))})
-                        ::http/enable-session                {}}
+                                                                                                                         :path-info]))})))})}
                        inga.pedestal/default-interceptors
                        http/dev-interceptors
                        http/create-servlet
@@ -107,7 +137,6 @@
           transit/read-string
           ::current-value)
       => 42)
-
     (fact
       (-> (response-for service-fn :post "/api"
                         :body (transit/pr-str [::current-value]))
@@ -116,6 +145,7 @@
           ::current-value)
       => 42)
     (fact
+      "mutation"
       (response-for service-fn :post (str "/mutation/" csrf "/app/inc")
                     :headers {"Cookie" cookie})
       => "echo")

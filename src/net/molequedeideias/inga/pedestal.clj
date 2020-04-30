@@ -3,6 +3,7 @@
             [com.wsscode.pathom.connect :as pc]
             [edn-query-language.core :as eql]
             [hiccup2.core :as h]
+            [ring.middleware.session.store :as session.store]
             [io.pedestal.http :as http]
             [io.pedestal.http.body-params :as http.body-params]
             [io.pedestal.http.csrf :as http.csrf]
@@ -140,10 +141,33 @@
                            (assoc ctx :response {:status 303 :body "ok"}))}]))
          :route-name (keyword sym)]))))
 
+(defn session-store
+  [{::keys [parser on-request session-key-ident session-data-ident session-write-sym]}]
+  (reify session.store/SessionStore
+    (read-session [_ key]
+      (-> (parser (on-request {})
+                  [{[session-key-ident key] [session-data-ident]}])
+          (get-in [[session-key-ident key]
+                   session-data-ident])))
+    (write-session [_ key data]
+      (-> (parser (on-request {})
+                  `[{(~session-write-sym ~{session-key-ident  key
+                                           session-data-ident data})
+                     ~[session-key-ident]}])
+          (get-in [session-write-sym session-key-ident])))))
+
+
 (defn default-interceptors
-  [{::keys [on-request]
+  [{::keys [on-request read-token parser session-key-ident session-data-ident session-write-sym]
     :as    service-map}]
-  (let [{::keys [post-router-interceptors
+  (let [service-map (cond-> service-map
+                            read-token (assoc-in [::http/enable-csrf :read-token]
+                                                 #(-> (parser % [read-token])
+                                                      read-token))
+                            (and session-key-ident session-data-ident session-write-sym)
+                            (assoc-in [::http/enable-session :store]
+                                      (session-store service-map)))
+        {::keys [post-router-interceptors
                  pre-router-interceptors]} (std-interceptors service-map)
         routes (into #{}
                      cat
