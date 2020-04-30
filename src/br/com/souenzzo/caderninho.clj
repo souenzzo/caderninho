@@ -154,25 +154,25 @@
                                                  [:head]
                                                  [:body
                                                   (::csrf/anti-forgery-token env)]])
-         ::inga.pedestal/pages                [{::inga/path       "/"
-                                                ::inga/route-name ::new2
-                                                ::inga/head       {}
-                                                ::inga/body       {:>/form  {::inga/ident-key          :>/a
-                                                                             ::inga/display-properties [:app-todo/id
-                                                                                                        :app-todo/note]
-                                                                             ::inga/->query            `inga/content->table-query
-                                                                             ::inga/->data             `inga/data->table
-                                                                             ::inga/->ui               `bs.ui/ui-table
-                                                                             ::inga/join-key           ::all-todos}
-                                                                   :>/query {::inga/mutation        `new-todo
-                                                                             ::inga/mutation-prefix "/mutations/"
-                                                                             ::inga/mutation-token  `[(::csrf/anti-forgery-token {:pathom/as :__anti-forgery-token})]
-                                                                             ::inga/->query         `inga/content->form-query
-                                                                             ::inga/->data          `inga/data->form
-                                                                             ::inga/->ui            `bs.ui/ui-form}}
-                                                ::inga/->query    `bs.page/->query
-                                                ::inga/->data     `bs.page/->tree
-                                                ::inga/->ui       `bs.page/->ui}]
+         ::inga.pedestal/pages                [{::inga.pedestal/path       "/"
+                                                ::inga.pedestal/route-name ::new2
+                                                ::inga/head                {}
+                                                ::inga/body                {:>/form  {::inga/ident-key          :>/a
+                                                                                      ::inga/display-properties [:app-todo/id
+                                                                                                                 :app-todo/note]
+                                                                                      ::inga/->query            `inga/content->table-query
+                                                                                      ::inga/->data             `inga/data->table
+                                                                                      ::inga/->ui               `bs.ui/ui-table
+                                                                                      ::inga/join-key           ::all-todos}
+                                                                            :>/query {::inga/mutation        `new-todo
+                                                                                      ::inga/mutation-prefix "/mutations/"
+                                                                                      ::inga/mutation-token  `[(::csrf/anti-forgery-token {:pathom/as :__anti-forgery-token})]
+                                                                                      ::inga/->query         `inga/content->form-query
+                                                                                      ::inga/->data          `inga/data->form
+                                                                                      ::inga/->ui            `bs.ui/ui-form}}
+                                                ::inga/->query             `bs.page/->query
+                                                ::inga/->data              `bs.page/->tree
+                                                ::inga/->ui                `bs.page/->ui}]
          ::http/resource-path                 "META-INF/resources/webjars"
          ::http/container-options             {:h2c?                 true
                                                :context-configurator context-configurator}
