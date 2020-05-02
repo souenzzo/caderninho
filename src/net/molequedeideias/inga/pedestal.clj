@@ -106,6 +106,7 @@
                                      :as           ctx}]
                                  (let [body (str (h/html
                                                    {:mode :html}
+                                                   (h/raw "<!DOCTYPE html>")
                                                    ui))]
                                    (assoc ctx :response
                                               {:headers {"Content-Length" (str (count (.getBytes body)))

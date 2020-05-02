@@ -3,7 +3,12 @@
             [next.jdbc :as jdbc]
             [br.com.souenzzo.caderninho :as caderninho]
             [clojure.java.io :as io]
-            [clojure.edn :as edn])
+            [clojure.edn :as edn]
+            [net.molequedeideias.inga.pedestal :as inga.pedestal]
+            [io.pedestal.interceptor.helpers :as interceptor]
+            [hiccup2.core :as h]
+            [net.molequedeideias.inga :as inga]
+            [ring.util.mime-type :as mime])
   (:import (org.eclipse.jetty.server.handler.gzip GzipHandler)
            (org.eclipse.jetty.servlet ServletContextHandler)))
 
@@ -14,6 +19,24 @@
     (.setExcludedAgentPatterns gzip-handler (make-array String 0))
     (.setGzipHandler context gzip-handler))
   context)
+
+(def dev-not-found-interceptor
+  (interceptor/after
+    ::not-found
+    (fn [{:keys [response]
+          :as   ctx}]
+      (if (http/response? response)
+        ctx
+        (-> ctx
+            (assoc-in [:response :body] (str (h/html
+                                               {:mode :html}
+                                               (h/raw "<!DOCTYPE html>")
+                                               [:html
+                                                [:head [:title "404"]]
+                                                [:body
+                                                 (inga/show ctx)]])))
+            (assoc-in [:response :headers "Content-Type"] (mime/default-mime-types "html"))
+            (assoc-in [:response :status] 404))))))
 
 (defonce state (atom nil))
 
@@ -75,7 +98,9 @@
                               ::http/join? false
                               ::http/container-options {:h2c?                 true
                                                         :context-configurator context-configurator}
-                              ::http/host "0.0.0.0")
+                              ::http/host "0.0.0.0"
+                              ::http/not-found-interceptor dev-not-found-interceptor)
+                       inga.pedestal/default-interceptors
                        http/dev-interceptors
                        http/create-server
                        http/start)))))

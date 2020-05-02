@@ -1,17 +1,15 @@
 (ns br.com.souenzzo.caderninho
-  (:require [io.pedestal.http :as http]
-            [io.pedestal.interceptor.helpers :as interceptor]
-            [net.molequedeideias.inga-bootstrap.pedestal :as bs.pedestal]
-            [net.molequedeideias.inga :as inga]
-            [net.molequedeideias.inga.pedestal :as inga.pedestal]
+  (:require [com.wsscode.pathom.connect :as pc]
             [com.wsscode.pathom.core :as p]
-            [com.wsscode.pathom.connect :as pc]
             [hiccup2.core :as h]
-            [ring.util.mime-type :as mime]
-            [next.jdbc :as jdbc]
-            [net.molequedeideias.inga-bootstrap.ui :as bs.ui]
+            [io.pedestal.http :as http]
+            [io.pedestal.http.csrf :as csrf]
+            [net.molequedeideias.inga :as inga]
             [net.molequedeideias.inga-bootstrap.page :as bs.page]
-            [io.pedestal.http.csrf :as csrf])
+            [net.molequedeideias.inga-bootstrap.pedestal :as bs.pedestal]
+            [net.molequedeideias.inga-bootstrap.ui :as bs.ui]
+            [net.molequedeideias.inga.pedestal :as inga.pedestal]
+            [next.jdbc :as jdbc])
   (:import (java.util UUID)
            (java.nio.charset StandardCharsets)
            (java.net URLDecoder)))
@@ -65,7 +63,6 @@
                               note])
          {}))]))
 
-(defonce state (atom nil))
 (comment
   {::bs.pedestal/parser          parser
    ::bs.pedestal/indexes         indexes
@@ -100,21 +97,6 @@
         ref-indexes (atom indexes)
         parser (p/parser {::p/plugins [(pc/connect-plugin {::pc/indexes ref-indexes})]
                           ::p/mutate  pc/mutate})
-        not-found-interceptor (interceptor/after
-                                ::not-found
-                                (fn [{:keys [response request]
-                                      :as   ctx}]
-                                  (if (http/response? response)
-                                    ctx
-                                    (assoc ctx :response {:body    (str (h/html
-                                                                          {:mode :html}
-                                                                          (h/raw "<!DOCTYPE html>")
-                                                                          [:html
-                                                                           [:head [:title "404"]]
-                                                                           [:body
-                                                                            (inga/show request)]]))
-                                                          :headers {"Content-Type" (mime/default-mime-types "html")}
-                                                          :status  404}))))
         on-request (fn [req]
                      (merge req
                             env
@@ -163,6 +145,4 @@
                                                 ::inga/->data              `bs.page/->tree
                                                 ::inga/->ui                `bs.page/->ui}]
          ::http/resource-path                 "META-INF/resources/webjars"
-         ::http/secure-headers                {:content-security-policy-settings "script-src 'self'"}
-         ::http/not-found-interceptor         not-found-interceptor}
-        inga.pedestal/default-interceptors)))
+         ::http/secure-headers                {:content-security-policy-settings "script-src 'self'"}})))
