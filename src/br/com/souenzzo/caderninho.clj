@@ -25,7 +25,7 @@
                            :path-params
                            :csrf
                            str
-                           (URLDecoder/decode StandardCharsets/UTF_8))}))
+                           (URLDecoder/decode (str StandardCharsets/UTF_8)))}))
      (pc/resolver
        `session-values
        {::pc/input  #{::session-key}
@@ -55,7 +55,7 @@
        {::pc/output [::mutation-prefix]}
        (fn [{::csrf/keys [anti-forgery-token]} _]
          {::mutation-prefix (str "/mutation/" (URLEncoder/encode (str anti-forgery-token)
-                                                                 StandardCharsets/UTF_8))}))
+                                                                 (str StandardCharsets/UTF_8)))}))
      (pc/resolver
        `csrf-token
        {::pc/output [::csrf/anti-forgery-token]}
