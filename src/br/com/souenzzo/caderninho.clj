@@ -64,22 +64,19 @@
          {}))]))
 
 (comment
-  {::bs.pedestal/parser          parser
-   ::bs.pedestal/indexes         indexes
-   ::bs.pedestal/mutation-prefix "/mutations/"
-   ::bs.pedestal/head            {::inga/title   "Caderninho"
-                                  ::inga/favicon (str "data:image/svg+xml;utf8,"
-                                                      (h/html
-                                                        [:svg
-                                                         {:xmlns   "http://www.w3.org/2000/svg"
-                                                          :viewBox "0 0 16 16"
-                                                          :width   "16"
-                                                          :height  "16"}
-                                                         [:text {:x "1" :y "13" :fill "royalblue"}
-                                                          "\uD83D\uDCD6"]]))}
-   ::bs.pedestal/header          {::inga/title "Caderninho"}
-   ::bs.pedestal/nav-menu        {::inga/links [{::inga/href  "/"
-                                                 ::inga/label "home"}]}}
+  {::bs.pedestal/head     {::inga/title   "Caderninho"
+                           ::inga/favicon (str "data:image/svg+xml;utf8,"
+                                               (h/html
+                                                 [:svg
+                                                  {:xmlns   "http://www.w3.org/2000/svg"
+                                                   :viewBox "0 0 16 16"
+                                                   :width   "16"
+                                                   :height  "16"}
+                                                  [:text {:x "1" :y "13" :fill "royalblue"}
+                                                   "\uD83D\uDCD6"]]))}
+   ::bs.pedestal/header   {::inga/title "Caderninho"}
+   ::bs.pedestal/nav-menu {::inga/links [{::inga/href  "/"
+                                          ::inga/label "home"}]}}
   ::bs.pedestal/intercept-pages [{::bs.pedestal/show-when ::not-authed?
                                   ::inga/head             {}
                                   ::inga/body             {:>/form {::inga/mutation        `login
@@ -122,9 +119,24 @@
                                                  ::body []})
          ::inga.pedestal/tree->ui             (fn [env {::keys [head body]}]
                                                 [:html
-                                                 [:head]
+                                                 [:head
+                                                  (bs.page/std-head
+                                                    {::inga/title   "Caderninho"
+                                                     ::inga/favicon (str "data:image/svg+xml;utf8,"
+                                                                         (h/html
+                                                                           [:svg
+                                                                            {:xmlns   "http://www.w3.org/2000/svg"
+                                                                             :viewBox "0 0 16 16"
+                                                                             :width   "16"
+                                                                             :height  "16"}
+                                                                            [:text {:x "1" :y "13" :fill "royalblue"}
+                                                                             "\uD83D\uDCD6"]]))})]
                                                  [:body
-                                                  (::csrf/anti-forgery-token env)]])
+                                                  (bs.page/std-header {::inga/title "Caderninho"})
+                                                  (bs.page/nav-menu {::inga/links [{::inga/href  "/"
+                                                                                    ::inga/label "home"}]})
+                                                  (bs.ui/ui-form {})
+                                                  (bs.ui/ui-table {})]])
          ::inga.pedestal/pages                [{::inga.pedestal/path       "/"
                                                 ::inga.pedestal/route-name ::new2
                                                 ::inga/head                {}
