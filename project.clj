@@ -16,6 +16,7 @@
   :profiles {:test {:test-paths   ["dev" "test"]
                     :dependencies [[midje/midje "1.9.9"]
                                    [ubergraph "0.8.2"]
+                                   [datascript "0.18.11"]
                                    [com.rpl/specter "1.1.3"]
                                    [clj-kondo/clj-kondo "2020.04.05"]
                                    [hickory/hickory "0.7.1"]]}}

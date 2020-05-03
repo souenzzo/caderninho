@@ -12,7 +12,7 @@
             [next.jdbc :as jdbc])
   (:import (java.util UUID)
            (java.nio.charset StandardCharsets)
-           (java.net URLDecoder)))
+           (java.net URLDecoder URLEncoder)))
 
 (defn register
   []
@@ -51,6 +51,12 @@
                         :app-todo/note note})]
            {::all-todos {:edn-query-language.pagination/edges edges}})))
      (pc/resolver
+       `mutation-prefix
+       {::pc/output [::mutation-prefix]}
+       (fn [{::csrf/keys [anti-forgery-token]} _]
+         {::mutation-prefix (str "/mutation/" (URLEncoder/encode (str anti-forgery-token)
+                                                                 StandardCharsets/UTF_8))}))
+     (pc/resolver
        `csrf-token
        {::pc/output [::csrf/anti-forgery-token]}
        (fn [{::csrf/keys [anti-forgery-token]} _]
@@ -81,7 +87,6 @@
                                   ::inga/head             {}
                                   ::inga/body             {:>/form {::inga/mutation        `login
                                                                     ::inga/mutation-prefix "/mutations/"
-                                                                    ::inga/mutation-token  `[(::csrf/anti-forgery-token {:pathom/as :__anti-forgery-token})]
                                                                     ::inga/->query         `inga/content->form-query
                                                                     ::inga/->data          `inga/data->form
                                                                     ::inga/->ui            `bs.ui/ui-form}}}])
@@ -111,12 +116,30 @@
          ::inga.pedestal/session-key-ident    ::session-key
          ::inga.pedestal/session-data-ident   ::session-values
          ::inga.pedestal/session-write-sym    `write-sesison
-         ::inga.pedestal/page->query          (fn [env {::inga.pedestal/keys [head body]}]
-                                                [{:>/head []}
-                                                 {:>/body []}])
+         ::inga.pedestal/pages                [{::inga.pedestal/path       "/"
+                                                ::inga.pedestal/route-name ::index
+                                                ::inga/head                {}
+                                                ::inga/body                {:>/form  {::inga/ident-key          :>/a
+                                                                                      ::inga/display-properties [:app-todo/id
+                                                                                                                 :app-todo/note]
+                                                                                      ::inga/->query            `inga/content->table-query
+                                                                                      ::inga/->data             `inga/data->table
+                                                                                      ::inga/->ui               `bs.ui/ui-table
+                                                                                      ::inga/join-key           ::all-todos}
+                                                                            :>/query {::inga/mutation              `new-todo
+                                                                                      ::inga/mutation-prefix-ident ::mutation-prefix
+                                                                                      ::inga/mutation-token        `[(::csrf/anti-forgery-token {:pathom/as :__anti-forgery-token})]
+                                                                                      ::inga/->query               `inga/content->form-query
+                                                                                      ::inga/->data                `inga/data->form
+                                                                                      ::inga/->ui                  `bs.ui/ui-form}}
+                                                ::inga/->query             `bs.page/->query
+                                                ::inga/->data              `bs.page/->tree
+                                                ::inga/->ui                `bs.page/->ui}]
+         ::inga.pedestal/page->query          (fn [env page]
+                                                [{:>/body (bs.page/->query (merge env page))}])
          ::inga.pedestal/result->tree         (fn [env {:>/keys [head body]}]
                                                 {::head []
-                                                 ::body []})
+                                                 ::body (bs.page/->tree env body)})
          ::inga.pedestal/tree->ui             (fn [env {::keys [head body]}]
                                                 [:html
                                                  [:head
@@ -135,26 +158,6 @@
                                                   (bs.page/std-header {::inga/title "Caderninho"})
                                                   (bs.page/nav-menu {::inga/links [{::inga/href  "/"
                                                                                     ::inga/label "home"}]})
-                                                  (bs.ui/ui-form {})
-                                                  (bs.ui/ui-table {})]])
-         ::inga.pedestal/pages                [{::inga.pedestal/path       "/"
-                                                ::inga.pedestal/route-name ::new2
-                                                ::inga/head                {}
-                                                ::inga/body                {:>/form  {::inga/ident-key          :>/a
-                                                                                      ::inga/display-properties [:app-todo/id
-                                                                                                                 :app-todo/note]
-                                                                                      ::inga/->query            `inga/content->table-query
-                                                                                      ::inga/->data             `inga/data->table
-                                                                                      ::inga/->ui               `bs.ui/ui-table
-                                                                                      ::inga/join-key           ::all-todos}
-                                                                            :>/query {::inga/mutation        `new-todo
-                                                                                      ::inga/mutation-prefix "/mutations/"
-                                                                                      ::inga/mutation-token  `[(::csrf/anti-forgery-token {:pathom/as :__anti-forgery-token})]
-                                                                                      ::inga/->query         `inga/content->form-query
-                                                                                      ::inga/->data          `inga/data->form
-                                                                                      ::inga/->ui            `bs.ui/ui-form}}
-                                                ::inga/->query             `bs.page/->query
-                                                ::inga/->data              `bs.page/->tree
-                                                ::inga/->ui                `bs.page/->ui}]
+                                                  (bs.page/->ui body)]])
          ::http/resource-path                 "META-INF/resources/webjars"
          ::http/secure-headers                {:content-security-policy-settings "script-src 'self'"}})))

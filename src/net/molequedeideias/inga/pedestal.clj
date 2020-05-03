@@ -151,12 +151,15 @@
                 post-router-interceptors
                 [{:name  (keyword sym)
                   :enter (fn [ctx]
-                           (parser (:request ctx) `[(~sym {})])
-                           (assoc ctx :response {:status 303 :body "ok"}))}]))
+                           (let [tx `[(~sym ~(->> ctx :request :params (into {} (map (juxt (comp keyword key)
+                                                                                           val)))))]]
+                             (parser (:request ctx) tx)
+                             (assoc ctx :response {:headers {"Location" (-> ctx :request :headers (get "Referer" "/"))}
+                                                   :status  303})))}]))
          :route-name (keyword sym)]))))
 
 (defn session-store
-  [{::keys [parser  session-key-ident session-data-ident session-write-sym]}]
+  [{::keys [parser session-key-ident session-data-ident session-write-sym]}]
   (reify session.store/SessionStore
     (read-session [_ key]
       (-> (parser *request*
