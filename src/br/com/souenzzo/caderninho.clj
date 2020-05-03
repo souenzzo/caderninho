@@ -50,6 +50,14 @@
                       :app-todo/note note})]
          {::all-todos {:edn-query-language.pagination/edges edges}})))
    (pc/resolver
+     `all-sessions
+     {::pc/output [::all-sessions]}
+     (fn [{::keys [sessions]} input]
+       (let [edges (for [[id values] @sessions]
+                     {:app-session/id     id
+                      :app-session/values (pr-str values)})]
+         {::all-sessions {:edn-query-language.pagination/edges edges}})))
+   (pc/resolver
      `mutation-prefix
      {::pc/output [::mutation-prefix]}
      (fn [{::csrf/keys [anti-forgery-token]} _]
@@ -135,6 +143,19 @@
                                                                                       ::inga/->ui                  `bs.ui/ui-form}}
                                                 ::inga/->query             `bs.page/->query
                                                 ::inga/->data              `bs.page/->tree
+                                                ::inga/->ui                `bs.page/->ui}
+                                               {::inga.pedestal/path       "/sessions"
+                                                ::inga.pedestal/route-name ::sessions
+                                                ::inga/head                {}
+                                                ::inga/body                {:>/form {::inga/ident-key          :>/a
+                                                                                     ::inga/display-properties [:app-session/id
+                                                                                                                :app-session/values]
+                                                                                     ::inga/->query            `inga/content->table-query
+                                                                                     ::inga/->data             `inga/data->table
+                                                                                     ::inga/->ui               `bs.ui/ui-table
+                                                                                     ::inga/join-key           ::all-sessions}}
+                                                ::inga/->query             `bs.page/->query
+                                                ::inga/->data              `bs.page/->tree
                                                 ::inga/->ui                `bs.page/->ui}]
          ::inga.pedestal/page->query          (fn [env page]
                                                 [{:>/body (bs.page/->query (merge env page))}])
@@ -158,7 +179,9 @@
                                                  [:body
                                                   (bs.page/std-header {::inga/title "Caderninho"})
                                                   (bs.page/nav-menu {::inga/links [{::inga/href  "/"
-                                                                                    ::inga/label "home"}]})
+                                                                                    ::inga/label "home"}
+                                                                                   {::inga/href  "/sessions"
+                                                                                    ::inga/label "sessions"}]})
                                                   (bs.page/->ui body)]])
          ::http/resource-path                 "META-INF/resources/webjars"
          ::http/secure-headers                {:content-security-policy-settings "script-src 'self'"}})))
