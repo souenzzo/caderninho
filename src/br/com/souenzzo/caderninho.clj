@@ -16,58 +16,57 @@
 
 (defn register
   []
-  (let [sessions (atom {})]
-    [(pc/resolver
-       `read-token
-       {::pc/output [::read-token]}
-       (fn [env input]
-         {::read-token (-> env
-                           :path-params
-                           :csrf
-                           str
-                           (URLDecoder/decode (str StandardCharsets/UTF_8)))}))
-     (pc/resolver
-       `session-values
-       {::pc/input  #{::session-key}
-        ::pc/output [::session-values]}
-       (fn [_ {::keys [session-key]}]
-         {::session-values (get @sessions session-key)}))
-     (pc/mutation
-       `write-sesison
-       {::pc/params [::session-key
-                     ::session-values]}
-       (fn [_ {::keys [session-key
-                       session-values]}]
-         (let [session-key (or session-key
-                               (str (UUID/randomUUID)))]
-           (swap! sessions assoc session-key session-values)
-           {::session-key session-key})))
-     (pc/resolver
-       `all-todos
-       {::pc/output [::all-todos]}
-       (fn [{::keys [conn]} input]
-         (let [edges (for [{:app_todo/keys [id note]} (jdbc/execute! conn ["SELECT id, note FROM app_todo"])]
-                       {:app-todo/id   id
-                        :app-todo/note note})]
-           {::all-todos {:edn-query-language.pagination/edges edges}})))
-     (pc/resolver
-       `mutation-prefix
-       {::pc/output [::mutation-prefix]}
-       (fn [{::csrf/keys [anti-forgery-token]} _]
-         {::mutation-prefix (str "/mutation/" (URLEncoder/encode (str anti-forgery-token)
-                                                                 (str StandardCharsets/UTF_8)))}))
-     (pc/resolver
-       `csrf-token
-       {::pc/output [::csrf/anti-forgery-token]}
-       (fn [{::csrf/keys [anti-forgery-token]} _]
-         {::csrf/anti-forgery-token anti-forgery-token}))
-     (pc/mutation
-       `new-todo
-       {::pc/params [:app.todo/note]}
-       (fn [{::keys [conn]} {:app.todo/keys [note]}]
-         (jdbc/execute! conn ["INSERT INTO app_todo (id, note, authed) VALUES (DEFAULT, ?, 1)"
-                              note])
-         {}))]))
+  [(pc/resolver
+     `read-token
+     {::pc/output [::read-token]}
+     (fn [env input]
+       {::read-token (-> env
+                         :path-params
+                         :csrf
+                         str
+                         (URLDecoder/decode (str StandardCharsets/UTF_8)))}))
+   (pc/resolver
+     `session-values
+     {::pc/input  #{::session-key}
+      ::pc/output [::session-values]}
+     (fn [{::keys [sessions]} {::keys [session-key]}]
+       {::session-values (get @sessions session-key)}))
+   (pc/mutation
+     `write-sesison
+     {::pc/params [::session-key
+                   ::session-values]}
+     (fn [{::keys [sessions]} {::keys [session-key
+                                       session-values]}]
+       (let [session-key (or session-key
+                             (str (UUID/randomUUID)))]
+         (swap! sessions assoc session-key session-values)
+         {::session-key session-key})))
+   (pc/resolver
+     `all-todos
+     {::pc/output [::all-todos]}
+     (fn [{::keys [conn]} input]
+       (let [edges (for [{:app_todo/keys [id note]} (jdbc/execute! conn ["SELECT id, note FROM app_todo"])]
+                     {:app-todo/id   id
+                      :app-todo/note note})]
+         {::all-todos {:edn-query-language.pagination/edges edges}})))
+   (pc/resolver
+     `mutation-prefix
+     {::pc/output [::mutation-prefix]}
+     (fn [{::csrf/keys [anti-forgery-token]} _]
+       {::mutation-prefix (str "/mutation/" (URLEncoder/encode (str anti-forgery-token)
+                                                               (str StandardCharsets/UTF_8)))}))
+   (pc/resolver
+     `csrf-token
+     {::pc/output [::csrf/anti-forgery-token]}
+     (fn [{::csrf/keys [anti-forgery-token]} _]
+       {::csrf/anti-forgery-token anti-forgery-token}))
+   (pc/mutation
+     `new-todo
+     {::pc/params [:app.todo/note]}
+     (fn [{::keys [conn]} {:app.todo/keys [note]}]
+       (jdbc/execute! conn ["INSERT INTO app_todo (id, note, authed) VALUES (DEFAULT, ?, 1)"
+                            note])
+       {}))])
 
 (comment
   {::bs.pedestal/head     {::inga/title   "Caderninho"
@@ -96,6 +95,7 @@
                              (concat
                                pc/connect-resolvers
                                (register)))
+        sessions (atom {})
         ref-indexes (atom indexes)
         parser (p/parser {::p/plugins [(pc/connect-plugin {::pc/indexes ref-indexes})]
                           ::p/mutate  pc/mutate})
@@ -106,6 +106,7 @@
                                                        pc/reader2
                                                        pc/open-ident-reader
                                                        p/env-placeholder-reader]
+                             ::sessions               sessions
                              ::p/placeholder-prefixes #{">"}}))]
     (-> {::inga.pedestal/on-request           on-request
          ::inga.pedestal/api-path             "/api"
