@@ -111,71 +111,71 @@
                                                        p/env-placeholder-reader]
                              ::sessions               sessions
                              ::p/placeholder-prefixes #{">"}}))]
-    (-> {::inga.pedestal/on-request           on-request
-         ::inga.pedestal/api-path             "/api"
-         ::inga.pedestal/form-mutation-prefix "/mutation/:csrf"
-         ::inga.pedestal/indexes              indexes
-         ::inga.pedestal/parser               parser
-         ::inga.pedestal/read-token           ::read-token
-         ::inga.pedestal/session-key-ident    ::session-key
-         ::inga.pedestal/session-data-ident   ::session-values
-         ::inga.pedestal/session-write-sym    `write-sesison
-         ::inga.pedestal/pages                [{::inga.pedestal/path       "/"
-                                                ::inga.pedestal/route-name ::index
-                                                ::inga/head                {}
-                                                ::inga/body                {:>/form  {::inga/ident-key          :>/a
-                                                                                      ::inga/display-properties [:app-todo/id
-                                                                                                                 :app-todo/note]
-                                                                                      ::inga/->query            `inga/content->table-query
-                                                                                      ::inga/->data             `inga/data->table
-                                                                                      ::inga/->ui               `bs.ui/ui-table
-                                                                                      ::inga/join-key           ::all-todos}
-                                                                            :>/query {::inga/mutation              `new-todo
-                                                                                      ::inga/mutation-prefix-ident ::mutation-prefix
-                                                                                      ::inga/->query               `inga/content->form-query
-                                                                                      ::inga/->data                `inga/data->form
-                                                                                      ::inga/->ui                  `bs.ui/ui-form}}
-                                                ::inga/->query             `bs.page/->query
-                                                ::inga/->data              `bs.page/->tree
-                                                ::inga/->ui                `bs.page/->ui}
-                                               {::inga.pedestal/path       "/sessions"
-                                                ::inga.pedestal/route-name ::sessions
-                                                ::inga/head                {}
-                                                ::inga/body                {:>/form {::inga/ident-key          :>/a
-                                                                                     ::inga/display-properties [:app-session/id
-                                                                                                                :app-session/values]
-                                                                                     ::inga/->query            `inga/content->table-query
-                                                                                     ::inga/->data             `inga/data->table
-                                                                                     ::inga/->ui               `bs.ui/ui-table
-                                                                                     ::inga/join-key           ::all-sessions}}
-                                                ::inga/->query             `bs.page/->query
-                                                ::inga/->data              `bs.page/->tree
-                                                ::inga/->ui                `bs.page/->ui}]
-         ::inga.pedestal/page->query          (fn [env page]
-                                                [{:>/body (bs.page/->query (merge env page))}])
-         ::inga.pedestal/result->tree         (fn [env {:>/keys [head body]}]
-                                                {::head []
-                                                 ::body (bs.page/->tree env body)})
-         ::inga.pedestal/tree->ui             (fn [env {::keys [head body]}]
-                                                [:html
-                                                 [:head
-                                                  (bs.page/std-head
-                                                    {::inga/title   "Caderninho"
-                                                     ::inga/favicon (str "data:image/svg+xml;utf8,"
-                                                                         (h/html
-                                                                           [:svg
-                                                                            {:xmlns   "http://www.w3.org/2000/svg"
-                                                                             :viewBox "0 0 16 16"
-                                                                             :width   "16"
-                                                                             :height  "16"}
-                                                                            [:text {:x "1" :y "13" :fill "royalblue"}
-                                                                             "\uD83D\uDCD6"]]))})]
-                                                 [:body
-                                                  (bs.page/std-header {::inga/title "Caderninho"})
-                                                  (bs.page/nav-menu {::inga/links [{::inga/href  "/"
-                                                                                    ::inga/label "home"}
-                                                                                   {::inga/href  "/sessions"
-                                                                                    ::inga/label "sessions"}]})
-                                                  (bs.page/->ui body)]])
-         ::http/resource-path                 "META-INF/resources/webjars"
-         ::http/secure-headers                {:content-security-policy-settings "script-src 'self'"}})))
+    {::inga.pedestal/on-request           on-request
+     ::inga.pedestal/api-path             "/api"
+     ::inga.pedestal/form-mutation-prefix "/mutation/:csrf"
+     ::inga.pedestal/indexes              indexes
+     ::inga.pedestal/parser               parser
+     ::inga.pedestal/read-token           ::read-token
+     ::inga.pedestal/session-key-ident    ::session-key
+     ::inga.pedestal/session-data-ident   ::session-values
+     ::inga.pedestal/session-write-sym    `write-sesison
+     ::inga.pedestal/pages                [{::inga.pedestal/path       "/"
+                                            ::inga.pedestal/route-name ::index
+                                            ::inga/head                {}
+                                            ::inga/body                {:>/form  {::inga/ident-key          :>/a
+                                                                                  ::inga/display-properties [:app-todo/id
+                                                                                                             :app-todo/note]
+                                                                                  ::inga/->query            `inga/content->table-query
+                                                                                  ::inga/->data             `inga/data->table
+                                                                                  ::inga/->ui               `bs.ui/ui-table
+                                                                                  ::inga/join-key           ::all-todos}
+                                                                        :>/query {::inga/mutation              `new-todo
+                                                                                  ::inga/mutation-prefix-ident ::mutation-prefix
+                                                                                  ::inga/->query               `inga/content->form-query
+                                                                                  ::inga/->data                `inga/data->form
+                                                                                  ::inga/->ui                  `bs.ui/ui-form}}
+                                            ::inga/->query             `bs.page/->query
+                                            ::inga/->data              `bs.page/->tree
+                                            ::inga/->ui                `bs.page/->ui}
+                                           {::inga.pedestal/path       "/sessions"
+                                            ::inga.pedestal/route-name ::sessions
+                                            ::inga/head                {}
+                                            ::inga/body                {:>/form {::inga/ident-key          :>/a
+                                                                                 ::inga/display-properties [:app-session/id
+                                                                                                            :app-session/values]
+                                                                                 ::inga/->query            `inga/content->table-query
+                                                                                 ::inga/->data             `inga/data->table
+                                                                                 ::inga/->ui               `bs.ui/ui-table
+                                                                                 ::inga/join-key           ::all-sessions}}
+                                            ::inga/->query             `bs.page/->query
+                                            ::inga/->data              `bs.page/->tree
+                                            ::inga/->ui                `bs.page/->ui}]
+     ::inga.pedestal/page->query          (fn [env page]
+                                            [{:>/body (bs.page/->query (merge env page))}])
+     ::inga.pedestal/result->tree         (fn [env {:>/keys [head body]}]
+                                            {::head []
+                                             ::body (bs.page/->tree env body)})
+     ::inga.pedestal/tree->ui             (fn [env {::keys [head body]}]
+                                            [:html
+                                             [:head
+                                              (bs.page/std-head
+                                                {::inga/title   "Caderninho"
+                                                 ::inga/favicon (str "data:image/svg+xml;utf8,"
+                                                                     (h/html
+                                                                       [:svg
+                                                                        {:xmlns   "http://www.w3.org/2000/svg"
+                                                                         :viewBox "0 0 16 16"
+                                                                         :width   "16"
+                                                                         :height  "16"}
+                                                                        [:text {:x "1" :y "13" :fill "royalblue"}
+                                                                         "\uD83D\uDCD6"]]))})]
+                                             [:body
+                                              (bs.page/std-header {::inga/title "Caderninho"})
+                                              (bs.page/nav-menu {::inga/links [{::inga/href  "/"
+                                                                                ::inga/label "home"}
+                                                                               {::inga/href  "/sessions"
+                                                                                ::inga/label "sessions"}]})
+                                              (bs.page/->ui body)]])
+     ::http/resource-path                 "META-INF/resources/webjars"
+     ::http/secure-headers                {:content-security-policy-settings "script-src 'self'"}}))
