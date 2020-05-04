@@ -63,11 +63,6 @@
      (fn [{::csrf/keys [anti-forgery-token]} _]
        {::mutation-prefix (str "/mutation/" (URLEncoder/encode (str anti-forgery-token)
                                                                (str StandardCharsets/UTF_8)))}))
-   (pc/resolver
-     `csrf-token
-     {::pc/output [::csrf/anti-forgery-token]}
-     (fn [{::csrf/keys [anti-forgery-token]} _]
-       {::csrf/anti-forgery-token anti-forgery-token}))
    (pc/mutation
      `new-todo
      {::pc/params [:app.todo/note]}
@@ -137,7 +132,6 @@
                                                                                       ::inga/join-key           ::all-todos}
                                                                             :>/query {::inga/mutation              `new-todo
                                                                                       ::inga/mutation-prefix-ident ::mutation-prefix
-                                                                                      ::inga/mutation-token        `[(::csrf/anti-forgery-token {:pathom/as :__anti-forgery-token})]
                                                                                       ::inga/->query               `inga/content->form-query
                                                                                       ::inga/->data                `inga/data->form
                                                                                       ::inga/->ui                  `bs.ui/ui-form}}
