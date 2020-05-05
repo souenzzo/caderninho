@@ -6,7 +6,6 @@
             [io.pedestal.http.csrf :as csrf]
             [net.molequedeideias.inga :as inga]
             [net.molequedeideias.inga-bootstrap.page :as bs.page]
-            [net.molequedeideias.inga-bootstrap.pedestal :as bs.pedestal]
             [net.molequedeideias.inga-bootstrap.ui :as bs.ui]
             [net.molequedeideias.inga.pedestal :as inga.pedestal]
             [next.jdbc :as jdbc])
@@ -45,17 +44,18 @@
      `all-todos
      {::pc/output [::all-todos]}
      (fn [{::keys [conn]} input]
-       (let [edges (for [{:app_todo/keys [id note]} (jdbc/execute! conn ["SELECT id, note FROM app_todo"])]
-                     {:app-todo/id   id
-                      :app-todo/note note})]
+       (let [edges (for [{:app_todo/keys [id note author]} (jdbc/execute! conn ["SELECT id, note, author FROM app_todo"])]
+                     {:app.todo/id     id
+                      :app.todo/author {:app.user/id author}
+                      :app.todo/note   note})]
          {::all-todos {:edn-query-language.pagination/edges edges}})))
    (pc/resolver
      `all-sessions
      {::pc/output [::all-sessions]}
      (fn [{::keys [sessions]} input]
        (let [edges (for [[id values] @sessions]
-                     {:app-session/id     id
-                      :app-session/values (pr-str values)})]
+                     {:app.session/id     id
+                      :app.session/values (pr-str values)})]
          {::all-sessions {:edn-query-language.pagination/edges edges}})))
    (pc/resolver
      `mutation-prefix
@@ -67,31 +67,10 @@
      `new-todo
      {::pc/params [:app.todo/note]}
      (fn [{::keys [conn]} {:app.todo/keys [note]}]
-       (jdbc/execute! conn ["INSERT INTO app_todo (id, note, authed) VALUES (DEFAULT, ?, 1)"
+       (jdbc/execute! conn ["INSERT INTO app_todo (id, note, author) VALUES (DEFAULT, ?, 1)"
                             note])
        {}))])
 
-(comment
-  {::bs.pedestal/head     {::inga/title   "Caderninho"
-                           ::inga/favicon (str "data:image/svg+xml;utf8,"
-                                               (h/html
-                                                 [:svg
-                                                  {:xmlns   "http://www.w3.org/2000/svg"
-                                                   :viewBox "0 0 16 16"
-                                                   :width   "16"
-                                                   :height  "16"}
-                                                  [:text {:x "1" :y "13" :fill "royalblue"}
-                                                   "\uD83D\uDCD6"]]))}
-   ::bs.pedestal/header   {::inga/title "Caderninho"}
-   ::bs.pedestal/nav-menu {::inga/links [{::inga/href  "/"
-                                          ::inga/label "home"}]}}
-  ::bs.pedestal/intercept-pages [{::bs.pedestal/show-when ::not-authed?
-                                  ::inga/head             {}
-                                  ::inga/body             {:>/form {::inga/mutation        `login
-                                                                    ::inga/mutation-prefix "/mutations/"
-                                                                    ::inga/->query         `inga/content->form-query
-                                                                    ::inga/->data          `inga/data->form
-                                                                    ::inga/->ui            `bs.ui/ui-form}}}])
 (defn service
   [env]
   (let [indexes (pc/register {}
@@ -124,8 +103,8 @@
                                             ::inga.pedestal/route-name ::index
                                             ::inga/head                {}
                                             ::inga/body                {:>/form  {::inga/ident-key          :>/a
-                                                                                  ::inga/display-properties [:app-todo/id
-                                                                                                             :app-todo/note]
+                                                                                  ::inga/display-properties [:app.todo/id
+                                                                                                             :app.todo/note]
                                                                                   ::inga/->query            `inga/content->table-query
                                                                                   ::inga/->data             `inga/data->table
                                                                                   ::inga/->ui               `bs.ui/ui-table
@@ -142,8 +121,8 @@
                                             ::inga.pedestal/route-name ::sessions
                                             ::inga/head                {}
                                             ::inga/body                {:>/form {::inga/ident-key          :>/a
-                                                                                 ::inga/display-properties [:app-session/id
-                                                                                                            :app-session/values]
+                                                                                 ::inga/display-properties [:app.session/id
+                                                                                                            :app.session/values]
                                                                                  ::inga/->query            `inga/content->table-query
                                                                                  ::inga/->data             `inga/data->table
                                                                                  ::inga/->ui               `bs.ui/ui-table

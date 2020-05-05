@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS app_user  (
 CREATE TABLE IF NOT EXISTS app_todo (
   id SERIAL UNIQUE NOT NULL PRIMARY KEY,
   note TEXT NOT NULL ,
-  authed SERIAL NOT NULL references app_user (id)
+  author SERIAL NOT NULL references app_user (id)
 );
 
 CREATE TABLE IF NOT EXISTS app_session (
