@@ -78,6 +78,24 @@
      (fn [{::csrf/keys [anti-forgery-token]} _]
        {::mutation-prefix (str "/mutation/" (URLEncoder/encode (str anti-forgery-token)
                                                                (str StandardCharsets/UTF_8)))}))
+   (pc/resolver
+     `user-username
+     {::pc/input  #{:app.user/id}
+      ::pc/output [:app.user/username]}
+     (fn [{::keys [conn]} {:app.user/keys [id]}]
+       (some->> (jdbc/execute! conn ["SELECT username FROM app_user WHERE id = ?" id])
+                first
+                :app_user/username
+                (hash-map :app.user/username))))
+   (pc/resolver
+     `todo-owner
+     {::pc/input  #{:app.todo/id}
+      ::pc/output [:app.user/id]}
+     (fn [{::keys [conn]} {:app.todo/keys [id]}]
+       (some->> (jdbc/execute! conn ["SELECT author FROM app_todo WHERE id = ?" id])
+                first
+                :app_todo/author
+                (hash-map :app.user/id))))
    (pc/mutation
      `new-todo
      {::pc/params [:app.todo/note]}
@@ -117,6 +135,7 @@
                                             ::inga/head                {}
                                             ::inga/body                {:>/form  {::inga/ident-key          :>/a
                                                                                   ::inga/display-properties [:app.todo/id
+                                                                                                             :app.user/username
                                                                                                              :app.todo/note]
                                                                                   ::inga/->query            `inga/content->table-query
                                                                                   ::inga/->data             `inga/data->table
