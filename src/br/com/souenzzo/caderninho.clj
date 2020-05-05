@@ -78,19 +78,32 @@
      (fn [{::csrf/keys [anti-forgery-token]} _]
        {::mutation-prefix (str "/mutation/" (URLEncoder/encode (str anti-forgery-token)
                                                                (str StandardCharsets/UTF_8)))}))
-   (pc/single-attr-resolver2
-     :app.user/id :app.user/username
+   (pc/resolver
+     `user-id->username
+     {::pc/input  #{:app.user/id}
+      ::pc/output [:app.user/username]}
      (fn [{::keys [conn]} {:app.user/keys [id]}]
        (some->> (jdbc/execute! conn ["SELECT username FROM app_user WHERE id = ?" id])
                 first
                 :app_user/username
                 (hash-map :app.user/username))))
-   (pc/single-attr-resolver2
-     :app.todo/id :app.user/id
+   (pc/resolver
+     `todo-id->user-id
+     {::pc/input  #{:app.todo/id}
+      ::pc/output [:app.user/id]}
      (fn [{::keys [conn]} {:app.todo/keys [id]}]
        (some->> (jdbc/execute! conn ["SELECT author FROM app_todo WHERE id = ?" id])
                 first
                 :app_todo/author
+                (hash-map :app.user/id))))
+   (pc/resolver
+     `session-id->user-id
+     {::pc/input  #{:app.session/id}
+      ::pc/output [:app.user/id]}
+     (fn [{::keys [conn]} {:app.session/keys [id]}]
+       (some->> (jdbc/execute! conn ["SELECT authed FROM app_session WHERE id = ?" id])
+                first
+                :app_session/authed
                 (hash-map :app.user/id))))
    (pc/mutation
      `new-todo
@@ -102,10 +115,19 @@
    (pc/mutation
      `login
      {::pc/params [:app.user/username]}
-     (fn [{::keys [conn]} {:app.user/keys [username]}]
-       (jdbc/with-transaction [db conn]
-         (jdbc/execute! conn ["INSERT INTO app_todo (id, note, author) VALUES (DEFAULT, ?, 1)"
-                              note])
+     (fn [{::csrf/keys [anti-forgery-token]
+           ::keys      [conn]} {:app.user/keys [username]}]
+       (jdbc/with-transaction [tx conn]
+         (let [user-id (-> (jdbc/execute! tx ["SELECT id FROM app_user WHERE username = ?"
+                                              username])
+                           first
+                           :app_user/id)
+               session-id (-> (jdbc/execute! tx ["SELECT id FROM app_session WHERE csrf = ?"
+                                                 anti-forgery-token])
+                              first
+                              :app_session/id)]
+           (jdbc/execute! conn ["UPDATE app_session SET authed = ? WHERE id = ?"
+                                user-id session-id]))
          {})))])
 
 (defn service
@@ -164,7 +186,8 @@
                                                                                   ::inga/->ui                  `bs.ui/ui-form}
                                                                         :>/query {::inga/ident-key          :>/a
                                                                                   ::inga/display-properties [:app.session/id
-                                                                                                             :app.session/values]
+                                                                                                             :app.session/values
+                                                                                                             :app.user/username]
                                                                                   ::inga/->query            `inga/content->table-query
                                                                                   ::inga/->data             `inga/data->table
                                                                                   ::inga/->ui               `bs.ui/ui-table

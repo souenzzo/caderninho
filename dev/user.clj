@@ -6,6 +6,7 @@
   [& _]
   (require 'br.com.souenzzo.caderninho
            'br.com.souenzzo.caderninho.main
+           'net.molequedeideias.inga.pedestal
            :reload)
   (apply caderninho.main/-main _))
 
