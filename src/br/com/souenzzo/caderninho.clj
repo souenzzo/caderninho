@@ -171,3 +171,4 @@
                                               (bs.page/->ui body)]])
      ::http/resource-path                 "META-INF/resources/webjars"
      ::http/secure-headers                {:content-security-policy-settings "script-src 'self'"}}))
+
