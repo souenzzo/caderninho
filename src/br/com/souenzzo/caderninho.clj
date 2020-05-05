@@ -78,19 +78,15 @@
      (fn [{::csrf/keys [anti-forgery-token]} _]
        {::mutation-prefix (str "/mutation/" (URLEncoder/encode (str anti-forgery-token)
                                                                (str StandardCharsets/UTF_8)))}))
-   (pc/resolver
-     `user-username
-     {::pc/input  #{:app.user/id}
-      ::pc/output [:app.user/username]}
+   (pc/single-attr-resolver2
+     :app.user/id :app.user/username
      (fn [{::keys [conn]} {:app.user/keys [id]}]
        (some->> (jdbc/execute! conn ["SELECT username FROM app_user WHERE id = ?" id])
                 first
                 :app_user/username
                 (hash-map :app.user/username))))
-   (pc/resolver
-     `todo-owner
-     {::pc/input  #{:app.todo/id}
-      ::pc/output [:app.user/id]}
+   (pc/single-attr-resolver2
+     :app.todo/id :app.user/id
      (fn [{::keys [conn]} {:app.todo/keys [id]}]
        (some->> (jdbc/execute! conn ["SELECT author FROM app_todo WHERE id = ?" id])
                 first
@@ -109,6 +105,7 @@
   (let [indexes (pc/register {}
                              (concat
                                pc/connect-resolvers
+                               [pc/index-explorer-resolver]
                                (register)))
         ref-indexes (atom indexes)
         parser (p/parser {::p/plugins [(pc/connect-plugin {::pc/indexes ref-indexes})]
