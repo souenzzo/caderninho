@@ -165,6 +165,7 @@
         mutation-prefix (get data mutation-prefix-ident)
         {::pc/keys [params]} (get index-mutations mutation)]
     {::action (str mutation-prefix "/" mutation)
+     ::label  (pr-str mutation)
      ::inputs (concat (for [{:keys [dispatch-key params]} (:children (eql/query->ast params))]
                         {::value (get data dispatch-key)
                          ::label (pr-str dispatch-key)

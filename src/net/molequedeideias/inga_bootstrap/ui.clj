@@ -28,7 +28,7 @@
 (def Form
   {::inga/query [::inga/action
                  {::inga/inputs (::inga/query Input)}]
-   ::inga/ui    (fn [{::inga/keys [action inputs]}]
+   ::inga/ui    (fn [{::inga/keys [action inputs label]}]
                   [:form
                    (cond-> {:style {:display        "flex"
                                     :padding        "3vw"
@@ -38,6 +38,7 @@
                                          :action action))
                    (map ui-input inputs)
                    (ui-input {::inga/flex-end? true
+                              ::inga/value     label
                               ::inga/type      "submit"})])})
 
 

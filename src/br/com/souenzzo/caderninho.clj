@@ -64,6 +64,14 @@
                       :app.todo/author {:app.user/id author}
                       :app.todo/note   note})]
          {::all-todos {:edn-query-language.pagination/edges edges}})))
+
+   (pc/resolver
+     `all-users
+     {::pc/output [::all-users]}
+     (fn [{::keys [conn]} input]
+       (let [edges (for [{:app_user/keys [id]} (jdbc/execute! conn ["SELECT id FROM app_user"])]
+                     {:app.user/id id})]
+         {::all-users {:edn-query-language.pagination/edges edges}})))
    (pc/resolver
      `all-sessions
      {::pc/output [::all-sessions]}
@@ -106,11 +114,36 @@
                 :app_session/authed
                 (hash-map :app.user/id))))
    (pc/mutation
+     `create-user
+     {::pc/params [:app.user/username]}
+     (fn [{::csrf/keys [anti-forgery-token]
+           ::keys      [conn]} {:app.user/keys [username]}]
+       (jdbc/with-transaction [tx conn]
+         (jdbc/execute! tx ["INSERT INTO app_user (username) VALUES (?)"
+                            username])
+         (let [session-id (-> (jdbc/execute! tx ["SELECT id FROM app_session WHERE csrf = ?"
+                                                 anti-forgery-token])
+                              first
+                              :app_session/id)
+               user-id (-> (jdbc/execute! tx ["SELECT id FROM app_user WHERE username = ?"
+                                              username])
+                           first
+                           :app_user/id)]
+           (jdbc/execute! conn ["UPDATE app_session SET authed = ? WHERE id = ?"
+                                user-id session-id])))
+       {}))
+   (pc/mutation
      `new-todo
      {::pc/params [:app.todo/note]}
-     (fn [{::keys [conn]} {:app.todo/keys [note]}]
-       (jdbc/execute! conn ["INSERT INTO app_todo (id, note, author) VALUES (DEFAULT, ?, 1)"
-                            note])
+     (fn [{::csrf/keys [anti-forgery-token]
+           ::keys      [conn]} {:app.todo/keys [note]}]
+       (jdbc/with-transaction [tx conn]
+         (let [user-id (-> (jdbc/execute! tx ["SELECT authed FROM app_session WHERE csrf = ?"
+                                              anti-forgery-token])
+                           first
+                           :app_session/authed)]
+           (jdbc/execute! tx ["INSERT INTO app_todo (note, author) VALUES (?, ?)"
+                              note user-id])))
        {}))
    (pc/mutation
      `login
@@ -179,19 +212,31 @@
                                            {::inga.pedestal/path       "/sessions"
                                             ::inga.pedestal/route-name ::sessions
                                             ::inga/head                {}
-                                            ::inga/body                {:>/form  {::inga/mutation              `login
-                                                                                  ::inga/mutation-prefix-ident ::mutation-prefix
-                                                                                  ::inga/->query               `inga/content->form-query
-                                                                                  ::inga/->data                `inga/data->form
-                                                                                  ::inga/->ui                  `bs.ui/ui-form}
-                                                                        :>/query {::inga/ident-key          :>/a
-                                                                                  ::inga/display-properties [:app.session/id
-                                                                                                             :app.session/values
-                                                                                                             :app.user/username]
-                                                                                  ::inga/->query            `inga/content->table-query
-                                                                                  ::inga/->data             `inga/data->table
-                                                                                  ::inga/->ui               `bs.ui/ui-table
-                                                                                  ::inga/join-key           ::all-sessions}}
+                                            ::inga/body                {:>/login    {::inga/mutation              `login
+                                                                                     ::inga/mutation-prefix-ident ::mutation-prefix
+                                                                                     ::inga/->query               `inga/content->form-query
+                                                                                     ::inga/->data                `inga/data->form
+                                                                                     ::inga/->ui                  `bs.ui/ui-form}
+                                                                        :>/sessions {::inga/ident-key          :>/a
+                                                                                     ::inga/display-properties [:app.session/id
+                                                                                                                :app.session/values
+                                                                                                                :app.user/username]
+                                                                                     ::inga/->query            `inga/content->table-query
+                                                                                     ::inga/->data             `inga/data->table
+                                                                                     ::inga/->ui               `bs.ui/ui-table
+                                                                                     ::inga/join-key           ::all-sessions}
+                                                                        :>/users    {::inga/ident-key          :>/a
+                                                                                     ::inga/display-properties [:app.user/id
+                                                                                                                :app.user/username]
+                                                                                     ::inga/->query            `inga/content->table-query
+                                                                                     ::inga/->data             `inga/data->table
+                                                                                     ::inga/->ui               `bs.ui/ui-table
+                                                                                     ::inga/join-key           ::all-users}
+                                                                        :>/create   {::inga/mutation              `create-user
+                                                                                     ::inga/mutation-prefix-ident ::mutation-prefix
+                                                                                     ::inga/->query               `inga/content->form-query
+                                                                                     ::inga/->data                `inga/data->form
+                                                                                     ::inga/->ui                  `bs.ui/ui-form}}
                                             ::inga/->query             `bs.page/->query
                                             ::inga/->data              `bs.page/->tree
                                             ::inga/->ui                `bs.page/->ui}]
