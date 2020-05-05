@@ -11,6 +11,7 @@
                  [org.postgresql/postgresql "42.2.12"]
                  [org.webjars.npm/bootstrap "4.4.1"]
                  [org.webjars.npm/jquery "3.4.1"]
+                 [com.rpl/specter "1.1.3"]
                  [org.webjars.npm/popper.js "1.16.1"]
                  [seancorfield/next.jdbc "1.0.424"]]
   :profiles {:test {:test-paths   ["dev" "test"]

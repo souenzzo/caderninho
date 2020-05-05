@@ -4,6 +4,7 @@
             [edn-query-language.core :as eql]
             [hiccup2.core :as h]
             [ring.middleware.session.store :as session.store]
+            [com.rpl.specter :as sp]
             [io.pedestal.http :as http]
             [io.pedestal.http.body-params :as http.body-params]
             [io.pedestal.http.csrf :as http.csrf]
@@ -127,7 +128,9 @@
                                               transit/read)]
                                    (assoc-in ctx [:request ::tx] tx)))
                         :leave (fn [ctx]
-                                 (update-in ctx [:response :body] transit/pr-str))}
+                                 (update-in ctx [:response :body] #(->> %
+                                                                        (sp/setval (sp/walker fn?) sp/NONE)
+                                                                        transit/pr-str)))}
                        (fn [{::keys [tx]
                              :as    env}]
                          {:body   (parser env tx)
