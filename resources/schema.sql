@@ -6,11 +6,11 @@ CREATE TABLE IF NOT EXISTS app_user  (
 CREATE TABLE IF NOT EXISTS app_todo (
   id SERIAL UNIQUE NOT NULL PRIMARY KEY,
   note TEXT NOT NULL ,
-  author SERIAL NOT NULL references app_user (id)
+  author INTEGER NOT NULL references app_user (id)
 );
 
 CREATE TABLE IF NOT EXISTS app_session (
-  id SERIAL UNIQUE NOT NULL PRIMARY KEY,
-  csrf TEXT,
-  authed SERIAL references app_user (id)
+  id UUID UNIQUE NOT NULL PRIMARY KEY,
+  csrf TEXT UNIQUE NOT NULL,
+  authed INTEGER references app_user (id)
 );

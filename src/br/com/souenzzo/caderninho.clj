@@ -13,6 +13,14 @@
            (java.nio.charset StandardCharsets)
            (java.net URLDecoder URLEncoder)))
 
+(set! *warn-on-reflection* true)
+
+(defn csrf->values
+  [csrf]
+  (if (string? csrf)
+    {"__anti-forgery-token" csrf}
+    {}))
+
 (defn register
   []
   [(pc/resolver
@@ -28,17 +36,24 @@
      `session-values
      {::pc/input  #{::session-key}
       ::pc/output [::session-values]}
-     (fn [{::keys [sessions]} {::keys [session-key]}]
-       {::session-values (get @sessions session-key)}))
+     (fn [{::keys [conn]} {::keys [session-key]}]
+       {::session-values (-> (when (string? session-key)
+                               (jdbc/execute! conn ["SELECT csrf FROM app_session WHERE id = ?"
+                                                    (UUID/fromString session-key)]))
+                             first
+                             :app_session/csrf
+                             csrf->values)}))
    (pc/mutation
      `write-sesison
      {::pc/params [::session-key
                    ::session-values]}
-     (fn [{::keys [sessions]} {::keys [session-key
-                                       session-values]}]
-       (let [session-key (or session-key
-                             (str (UUID/randomUUID)))]
-         (swap! sessions assoc session-key session-values)
+     (fn [{::keys [conn]} {::keys [session-key
+                                   session-values]}]
+       (let [session-key (if (string? session-key)
+                           (UUID/fromString ^String session-key)
+                           (UUID/randomUUID))]
+         (jdbc/execute! conn ["INSERT INTO app_session (id, csrf) VALUES (?, ?)"
+                              session-key (get session-values "__anti-forgery-token")])
          {::session-key session-key})))
    (pc/resolver
      `all-todos
@@ -52,10 +67,10 @@
    (pc/resolver
      `all-sessions
      {::pc/output [::all-sessions]}
-     (fn [{::keys [sessions]} input]
-       (let [edges (for [[id values] @sessions]
+     (fn [{::keys [conn]} input]
+       (let [edges (for [{:app_session/keys [id csrf]} (jdbc/execute! conn ["SELECT id, csrf FROM app_session"])]
                      {:app.session/id     id
-                      :app.session/values (pr-str values)})]
+                      :app.session/values (pr-str (csrf->values csrf))})]
          {::all-sessions {:edn-query-language.pagination/edges edges}})))
    (pc/resolver
      `mutation-prefix
@@ -77,7 +92,6 @@
                              (concat
                                pc/connect-resolvers
                                (register)))
-        sessions (atom {})
         ref-indexes (atom indexes)
         parser (p/parser {::p/plugins [(pc/connect-plugin {::pc/indexes ref-indexes})]
                           ::p/mutate  pc/mutate})
@@ -88,7 +102,6 @@
                                                        pc/reader2
                                                        pc/open-ident-reader
                                                        p/env-placeholder-reader]
-                             ::sessions               sessions
                              ::p/placeholder-prefixes #{">"}}))]
     {::inga.pedestal/on-request           on-request
      ::inga.pedestal/api-path             "/api"

@@ -1,5 +1,6 @@
 (ns user
-  (:require [br.com.souenzzo.caderninho.main :as caderninho.main]))
+  (:require [br.com.souenzzo.caderninho.main :as caderninho.main]
+            [next.jdbc :as jdbc]))
 
 (defn -main
   [& _]
@@ -7,3 +8,11 @@
            'br.com.souenzzo.caderninho.main
            :reload)
   (apply caderninho.main/-main _))
+
+(def conn
+  (delay
+    (jdbc/get-datasource {:jdbcUrl (System/getenv "JDBC_DATABASE_URL")})))
+
+(defn sql
+  [& opts]
+  (jdbc/execute! @conn opts))
