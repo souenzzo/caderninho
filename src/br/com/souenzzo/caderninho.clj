@@ -8,10 +8,11 @@
             [net.molequedeideias.inga-bootstrap.page :as bs.page]
             [net.molequedeideias.inga-bootstrap.ui :as bs.ui]
             [net.molequedeideias.inga.pedestal :as inga.pedestal]
-            [next.jdbc :as jdbc])
-  (:import (java.util UUID)
+            [next.jdbc :as jdbc]
+            [com.wsscode.pathom.trace :as pt])
+  (:import (java.net URLDecoder URLEncoder)
            (java.nio.charset StandardCharsets)
-           (java.net URLDecoder URLEncoder)))
+           (java.util UUID)))
 
 (set! *warn-on-reflection* true)
 
@@ -171,13 +172,14 @@
                                [pc/index-explorer-resolver]
                                (register)))
         ref-indexes (atom indexes)
-        parser (p/parser {::p/plugins [(pc/connect-plugin {::pc/indexes ref-indexes})]
+        parser (p/parser {::p/plugins [(pc/connect-plugin {::pc/indexes ref-indexes})
+                                       pt/trace-plugin]
                           ::p/mutate  pc/mutate})
         on-request (fn [req]
                      (merge req
                             env
                             {::p/reader               [p/map-reader
-                                                       pc/reader2
+                                                       pc/reader3
                                                        pc/open-ident-reader
                                                        p/env-placeholder-reader]
                              ::p/placeholder-prefixes #{">"}}))]
