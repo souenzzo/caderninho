@@ -275,7 +275,6 @@
                                               (assoc page
                                                 ::inga.pedestal/query [{:>/body (bs.page/->query (merge env page))}])))
      ::inga.pedestal/result->tree         (fn [env {:>/keys [head body]}]
-                                            (prn [:body body])
                                             {::head []
                                              ::body (bs.page/->tree env (sp/setval (sp/walker #{::p/not-found})
                                                                                    sp/NONE
