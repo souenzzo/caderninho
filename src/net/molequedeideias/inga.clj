@@ -143,15 +143,21 @@
                                         ::pc/indexes])))
 
 (defn content->form-query
-  [{::keys [mutation-prefix-ident]}]
-  (-> {:type     :root
-       :children (concat [{:type         :prop
-                           :dispatch-key ::pc/indexes
-                           :key          ::pc/indexes}
-                          {:type         :prop
-                           :dispatch-key mutation-prefix-ident
-                           :key          mutation-prefix-ident}])}
-      eql/ast->query))
+  [{::pc/keys [indexes]
+    ::keys    [mutation-prefix-ident mutation]}]
+  (let [params (-> (pc/mutation-data indexes mutation)
+                   ::pc/params
+                   eql/query->ast
+                   :children)]
+    (-> {:type     :root
+         :children (concat [{:type         :prop
+                             :dispatch-key ::pc/indexes
+                             :key          ::pc/indexes}
+                            {:type         :prop
+                             :dispatch-key mutation-prefix-ident
+                             :key          mutation-prefix-ident}]
+                           params)}
+        eql/ast->query)))
 
 (s/fdef content->form-query
         :args (s/cat :env (s/keys)))

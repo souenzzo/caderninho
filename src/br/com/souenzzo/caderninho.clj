@@ -9,7 +9,8 @@
             [net.molequedeideias.inga-bootstrap.ui :as bs.ui]
             [net.molequedeideias.inga.pedestal :as inga.pedestal]
             [next.jdbc :as jdbc]
-            [com.wsscode.pathom.trace :as pt])
+            [com.wsscode.pathom.trace :as pt]
+            [com.rpl.specter :as sp])
   (:import (java.net URLDecoder URLEncoder)
            (java.nio.charset StandardCharsets)
            (java.util UUID)))
@@ -146,14 +147,29 @@
            (jdbc/execute! tx ["INSERT INTO app_todo (note, author) VALUES (?, ?)"
                               note user-id])))
        {}))
+   (pc/resolver
+     `current-username
+     {::pc/output [::current-username]}
+     (fn [{::csrf/keys [anti-forgery-token]
+           ::keys      [conn]} _]
+       (->> ["SELECT app_user.username
+              FROM app_user
+              JOIN app_session ON  app_session.csrf = ?
+              WHERE app_session.authed = app_user.id"
+             anti-forgery-token]
+            (jdbc/execute! conn)
+            first
+            :app_user/username
+            (hash-map ::current-username))))
+   (pc/single-attr-resolver ::current-username ::authed? boolean)
    (pc/mutation
      `login
-     {::pc/params [:app.user/username]}
+     {::pc/params [::current-username]}
      (fn [{::csrf/keys [anti-forgery-token]
-           ::keys      [conn]} {:app.user/keys [username]}]
+           ::keys      [conn]} {::keys [current-username]}]
        (jdbc/with-transaction [tx conn]
          (let [user-id (-> (jdbc/execute! tx ["SELECT id FROM app_user WHERE username = ?"
-                                              username])
+                                              current-username])
                            first
                            :app_user/id)
                session-id (-> (jdbc/execute! tx ["SELECT id FROM app_session WHERE csrf = ?"
@@ -182,6 +198,8 @@
                                                        pc/reader3
                                                        pc/open-ident-reader
                                                        p/env-placeholder-reader]
+                             ::p/entity               (atom {})
+                             ::pc/indexes             @ref-indexes
                              ::p/placeholder-prefixes #{">"}}))]
     {::inga.pedestal/on-request           on-request
      ::inga.pedestal/api-path             "/api"
@@ -195,19 +213,19 @@
      ::inga.pedestal/pages                [{::inga.pedestal/path       "/"
                                             ::inga.pedestal/route-name ::index
                                             ::inga/head                {}
-                                            ::inga/body                {:>/query {::inga/ident-key          :>/a
-                                                                                  ::inga/display-properties [:app.todo/id
-                                                                                                             :app.user/username
-                                                                                                             :app.todo/note]
-                                                                                  ::inga/->query            `inga/content->table-query
-                                                                                  ::inga/->data             `inga/data->table
-                                                                                  ::inga/->ui               `bs.ui/ui-table
-                                                                                  ::inga/join-key           ::all-todos}
-                                                                        :>/form  {::inga/mutation              `new-todo
-                                                                                  ::inga/mutation-prefix-ident ::mutation-prefix
-                                                                                  ::inga/->query               `inga/content->form-query
-                                                                                  ::inga/->data                `inga/data->form
-                                                                                  ::inga/->ui                  `bs.ui/ui-form}}
+                                            ::inga/body                {:>/all-todos {::inga/ident-key          :>/a
+                                                                                      ::inga/display-properties [:app.todo/id
+                                                                                                                 :app.user/username
+                                                                                                                 :app.todo/note]
+                                                                                      ::inga/->query            `inga/content->table-query
+                                                                                      ::inga/->data             `inga/data->table
+                                                                                      ::inga/->ui               `bs.ui/ui-table
+                                                                                      ::inga/join-key           ::all-todos}
+                                                                        :>/new-todo  {::inga/mutation              `new-todo
+                                                                                      ::inga/mutation-prefix-ident ::mutation-prefix
+                                                                                      ::inga/->query               `inga/content->form-query
+                                                                                      ::inga/->data                `inga/data->form
+                                                                                      ::inga/->ui                  `bs.ui/ui-form}}
                                             ::inga/->query             `bs.page/->query
                                             ::inga/->data              `bs.page/->tree
                                             ::inga/->ui                `bs.page/->ui}
@@ -242,11 +260,26 @@
                                             ::inga/->query             `bs.page/->query
                                             ::inga/->data              `bs.page/->tree
                                             ::inga/->ui                `bs.page/->ui}]
-     ::inga.pedestal/page->query          (fn [env page]
-                                            [{:>/body (bs.page/->query (merge env page))}])
+     ::inga.pedestal/page->query          (fn [env {::inga.pedestal/keys [route-name] :as page}]
+                                            (let [{::keys [authed?]} (parser env [::authed?])
+                                                  show-login? (and (not authed?)
+                                                                   (= route-name ::index))
+                                                  page (cond-> (merge env page)
+                                                               (not authed?) (update ::inga/body dissoc :>/create :>/new-todo)
+                                                               show-login?
+                                                               (assoc ::inga/body {:>/login {::inga/mutation              `login
+                                                                                             ::inga/mutation-prefix-ident ::mutation-prefix
+                                                                                             ::inga/->query               `inga/content->form-query
+                                                                                             ::inga/->data                `inga/data->form
+                                                                                             ::inga/->ui                  `bs.ui/ui-form}}))]
+                                              (assoc page
+                                                ::inga.pedestal/query [{:>/body (bs.page/->query (merge env page))}])))
      ::inga.pedestal/result->tree         (fn [env {:>/keys [head body]}]
+                                            (prn [:body body])
                                             {::head []
-                                             ::body (bs.page/->tree env body)})
+                                             ::body (bs.page/->tree env (sp/setval (sp/walker #{::p/not-found})
+                                                                                   sp/NONE
+                                                                                   body))})
      ::inga.pedestal/tree->ui             (fn [env {::keys [head body]}]
                                             [:html
                                              [:head
@@ -262,7 +295,10 @@
                                                                         [:text {:x "1" :y "13" :fill "royalblue"}
                                                                          "\uD83D\uDCD6"]]))})]
                                              [:body
-                                              (bs.page/std-header {::inga/title "Caderninho"})
+                                              (bs.page/std-header {::inga/title        "Caderninho"
+                                                                   ::inga/current-user (-> (parser env [::current-username])
+                                                                                           ::current-username
+                                                                                           str)})
                                               (bs.page/nav-menu {::inga/links [{::inga/href  "/"
                                                                                 ::inga/label "home"}
                                                                                {::inga/href  "/sessions"

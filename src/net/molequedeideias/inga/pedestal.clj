@@ -76,14 +76,14 @@
                      cat
                      [post-router-interceptors
 
-                      [{:name  (page-kw "inject-env")
+                      [{:name  (page-kw "merge-service-map")
                         :enter (fn [ctx]
-                                 (update ctx :request merge service-map page))}
+                                 (update ctx :request merge service-map))}
                        {:name  (page-kw "page->query")
                         :enter (fn [ctx]
                                  (update ctx :request
                                          (fn [env]
-                                           (assoc env ::query (page->query env page)))))}
+                                           (merge env (page->query env page)))))}
                        {:name  (page-kw "query->result")
                         :enter (fn [ctx]
                                  (update ctx :request
