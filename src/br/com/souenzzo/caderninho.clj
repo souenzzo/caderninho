@@ -10,12 +10,18 @@
             [net.molequedeideias.inga.pedestal :as inga.pedestal]
             [next.jdbc :as jdbc]
             [com.wsscode.pathom.trace :as pt]
-            [com.rpl.specter :as sp])
+            [com.rpl.specter :as sp]
+            [clojure.spec.alpha :as s]
+            [spec-coerce.core :as sc])
   (:import (java.net URLDecoder URLEncoder)
            (java.nio.charset StandardCharsets)
            (java.util UUID)))
 
 (set! *warn-on-reflection* true)
+
+(s/def :edn-query-language.pagination/first-element-index integer?)
+
+(s/def :edn-query-language.pagination/elements-per-page integer?)
 
 (defn csrf->values
   [csrf]
@@ -59,13 +65,42 @@
          {::session-key session-key})))
    (pc/resolver
      `all-todos
-     {::pc/output [::all-todos]}
-     (fn [{::keys [conn]} input]
-       (let [edges (for [{:app_todo/keys [id note author]} (jdbc/execute! conn ["SELECT id, note, author FROM app_todo"])]
+     {::pc/params [::current-username
+                   :edn-query-language.pagination/first-element-index
+                   :edn-query-language.pagination/elements-per-page]
+      ::pc/output [::all-todos]}
+     (fn [{:keys  [parser]
+           ::keys [conn]
+           :as    env} input]
+       (let [{::keys [current-username]
+              :edn-query-language.pagination/keys
+                     [first-element-index
+                      elements-per-page]
+              :or    {first-element-index 0
+                      elements-per-page   3}} (p/params env)
+             current-username (or current-username
+                                  (-> env
+                                      (parser [::current-username])
+                                      ::current-username))
+             els (->> ["SELECT app_todo.id, app_todo.author, app_todo.note
+                        FROM app_todo
+                        JOIN  app_user
+                          ON  app_todo.author   = app_user.id
+                        WHERE app_user.username = ?
+                        AND   app_todo.id       > ?
+                        ORDER BY app_todo.id
+                        LIMIT ?"
+                       current-username
+                       first-element-index elements-per-page]
+                      (jdbc/execute! conn))
+             edges (for [{:app_todo/keys [id note author]} els]
                      {:app.todo/id     id
                       :app.todo/author {:app.user/id author}
                       :app.todo/note   note})]
-         {::all-todos {:edn-query-language.pagination/edges edges}})))
+         {::all-todos {:edn-query-language.pagination/edges               edges
+                       ::current-username                                 current-username
+                       :edn-query-language.pagination/elements-per-page   elements-per-page
+                       :edn-query-language.pagination/first-element-index first-element-index}})))
 
    (pc/resolver
      `all-users
@@ -260,7 +295,8 @@
                                             ::inga/->query             `bs.page/->query
                                             ::inga/->data              `bs.page/->tree
                                             ::inga/->ui                `bs.page/->ui}]
-     ::inga.pedestal/page->query          (fn [env {::inga.pedestal/keys [route-name] :as page}]
+     ::inga.pedestal/page->query          (fn [{:keys [query-params]
+                                                :as   env} {::inga.pedestal/keys [route-name] :as page}]
                                             (let [{::keys [authed?]} (parser env [::authed?])
                                                   show-login? (and (not authed?)
                                                                    (= route-name ::index))
@@ -273,7 +309,8 @@
                                                                                              ::inga/->data                `inga/data->form
                                                                                              ::inga/->ui                  `bs.ui/ui-form}}))]
                                               (assoc page
-                                                ::inga.pedestal/query [{:>/body (bs.page/->query (merge env page))}])))
+                                                ::inga.pedestal/query [{:>/body (bs.page/->query (merge env page
+                                                                                                        {::inga/default-params (sc/coerce-structure query-params)}))}])))
      ::inga.pedestal/result->tree         (fn [env {:>/keys [head body]}]
                                             {::head []
                                              ::body (bs.page/->tree env (sp/setval (sp/walker #{::p/not-found})
