@@ -19,13 +19,6 @@
 
 (set! *warn-on-reflection* true)
 
-(comment
-  (jdbc/execute!
-    @conn
-    ["SELECT *
-    FROM app_todo
-    WHERE author IN (SELECT unnest(?))"
-     (int-array [1 3])]))
 
 (s/def :edn-query-language.pagination/first-element-index integer?)
 
@@ -151,6 +144,13 @@
      {::pc/input  #{:app.todo/id}
       ::pc/output [:app.user/id]}
      (fn [{::keys [conn]} {:app.todo/keys [id]}]
+       (comment
+         (jdbc/execute!
+           @conn
+           ["SELECT *
+             FROM app_todo
+             WHERE author = ANY(?)"
+            (int-array [1 3])]))
        (some->> (jdbc/execute! conn ["SELECT author FROM app_todo WHERE id = ?" id])
                 first
                 :app_todo/author
