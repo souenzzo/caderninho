@@ -82,21 +82,18 @@
                                   (-> env
                                       (parser [::current-username])
                                       ::current-username))
-             els (->> ["SELECT app_todo.id, app_todo.author, app_todo.note
-                        FROM app_todo
-                        JOIN  app_user
-                          ON  app_todo.author   = app_user.id
-                        WHERE app_user.username = ?
-                        AND   app_todo.id       > ?
-                        ORDER BY app_todo.id
-                        LIMIT ?"
-                       current-username
-                       first-element-index elements-per-page]
-                      (jdbc/execute! conn))
-             edges (for [{:app_todo/keys [id note author]} els]
-                     {:app.todo/id     id
-                      :app.todo/author {:app.user/id author}
-                      :app.todo/note   note})]
+             edges (->> ["SELECT app_todo.id
+                          FROM app_todo
+                          JOIN app_user ON app_todo.author = app_user.id
+                          WHERE app_user.username = ?
+                          AND app_todo.id > ?
+                          ORDER BY app_todo.id
+                          LIMIT ?"
+                         current-username
+                         first-element-index elements-per-page]
+                        (jdbc/execute! conn)
+                        (map (comp (partial hash-map :app.todo/id)
+                                   :app_todo/id)))]
          {::all-todos {:edn-query-language.pagination/edges               edges
                        ::current-username                                 current-username
                        :edn-query-language.pagination/elements-per-page   elements-per-page
@@ -132,6 +129,15 @@
                 first
                 :app_user/username
                 (hash-map :app.user/username))))
+   (pc/resolver
+     `todo-id->note
+     {::pc/input  #{:app.todo/id}
+      ::pc/output [:app.todo/note]}
+     (fn [{::keys [conn]} {:app.todo/keys [id]}]
+       (some->> (jdbc/execute! conn ["SELECT note FROM app_todo WHERE id = ?" id])
+                first
+                :app_todo/note
+                (hash-map :app.todo/note))))
    (pc/resolver
      `todo-id->user-id
      {::pc/input  #{:app.todo/id}
