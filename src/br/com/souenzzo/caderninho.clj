@@ -19,6 +19,14 @@
 
 (set! *warn-on-reflection* true)
 
+(comment
+  (jdbc/execute!
+    @conn
+    ["SELECT *
+    FROM app_todo
+    WHERE author IN (SELECT unnest(?))"
+     (int-array [1 3])]))
+
 (s/def :edn-query-language.pagination/first-element-index integer?)
 
 (s/def :edn-query-language.pagination/elements-per-page integer?)
