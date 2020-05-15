@@ -1,88 +1,25 @@
 (ns br.com.souenzzo.caderninho
-  (:require [br.com.souenzzo.caderninho.entity-db :as entity-db]
-            [br.com.souenzzo.caderninho.session :as session]
+  (:require [br.com.souenzzo.caderninho.session :as session]
             [br.com.souenzzo.caderninho.todo :as todo]
             [br.com.souenzzo.caderninho.user :as user]
             [clojure.spec.alpha :as s]
             [com.rpl.specter :as sp]
             [com.wsscode.pathom.connect :as pc]
             [com.wsscode.pathom.core :as p]
+            [br.com.souenzzo.caderninho.query :as query]
             [com.wsscode.pathom.trace :as pt]
             [hiccup2.core :as h]
             [io.pedestal.http :as http]
-            [io.pedestal.http.csrf :as csrf]
             [net.molequedeideias.inga :as inga]
             [net.molequedeideias.inga-bootstrap.page :as bs.page]
             [net.molequedeideias.inga-bootstrap.ui :as bs.ui]
             [net.molequedeideias.inga.pedestal :as inga.pedestal]
-            [next.jdbc :as jdbc]
-            [spec-coerce.core :as sc])
-  (:import (java.net URLEncoder)
-           (java.nio.charset StandardCharsets)))
+            [spec-coerce.core :as sc]))
 
 (set! *warn-on-reflection* true)
 
 (s/def :edn-query-language.pagination/first-element-index integer?)
 (s/def :edn-query-language.pagination/elements-per-page integer?)
-
-(defn register
-  []
-  [(pc/resolver
-     `all-sessions
-     {::pc/output [::all-sessions]}
-     (fn [{::entity-db/keys [conn]} input]
-       (let [edges (for [{:app_session/keys [id csrf]} (jdbc/execute! conn ["SELECT id, csrf FROM app_session"])]
-                     {:app.session/id     id
-                      :app.session/values (pr-str (session/csrf->values csrf))})]
-         {::all-sessions {:edn-query-language.pagination/edges edges}})))
-   (pc/resolver
-     `all-users
-     {::pc/output [::all-users]}
-     (fn [{::entity-db/keys [conn]} input]
-       (let [edges (for [{:app_user/keys [id]} (jdbc/execute! conn ["SELECT id FROM app_user"])]
-                     {:app.user/id id})]
-         {::all-users {:edn-query-language.pagination/edges edges}})))
-   (pc/resolver
-     `all-todos
-     {::pc/params [::session/current-username
-                   :edn-query-language.pagination/first-element-index
-                   :edn-query-language.pagination/elements-per-page]
-      ::pc/output [::all-todos]}
-     (fn [{:keys            [parser]
-           ::entity-db/keys [conn]
-           :as              env} input]
-       (let [{::session/keys [current-username]
-              :edn-query-language.pagination/keys
-                             [first-element-index
-                              elements-per-page]
-              :or            {first-element-index 0
-                              elements-per-page   3}} (p/params env)
-             current-username (or current-username
-                                  (-> env
-                                      (parser [::session/current-username])
-                                      ::session/current-username))
-             edges (->> ["SELECT app_todo.id
-                          FROM app_todo
-                          JOIN app_user ON app_todo.author = app_user.id
-                          WHERE app_user.username = ?
-                          AND app_todo.id > ?
-                          ORDER BY app_todo.id
-                          LIMIT ?"
-                         current-username
-                         first-element-index elements-per-page]
-                        (jdbc/execute! conn)
-                        (map (comp (partial hash-map :app.todo/id)
-                                   :app_todo/id)))]
-         {::all-todos {:edn-query-language.pagination/edges               edges
-                       ::session/current-username                         current-username
-                       :edn-query-language.pagination/elements-per-page   elements-per-page
-                       :edn-query-language.pagination/first-element-index first-element-index}})))
-   (pc/resolver
-     `mutation-prefix
-     {::pc/output [::mutation-prefix]}
-     (fn [{::csrf/keys [anti-forgery-token]} _]
-       {::mutation-prefix (str "/mutation/" (URLEncoder/encode (str anti-forgery-token)
-                                                               (str StandardCharsets/UTF_8)))}))])
 
 (def pages
   [{::inga.pedestal/path       "/"
@@ -96,9 +33,9 @@
                                               ::inga/->query            `inga/content->table-query
                                               ::inga/->data             `inga/data->table
                                               ::inga/->ui               `bs.ui/ui-table
-                                              ::inga/join-key           ::all-todos}
+                                              ::inga/join-key           ::query/all-todos}
                                 :>/new-todo  {::inga/mutation              `todo/new-todo
-                                              ::inga/mutation-prefix-ident ::mutation-prefix
+                                              ::inga/mutation-prefix-ident ::query/mutation-prefix
                                               ::inga/->query               `inga/content->form-query
                                               ::inga/->data                `inga/data->form
                                               ::inga/->ui                  `bs.ui/ui-form}}
@@ -109,7 +46,7 @@
     ::inga.pedestal/route-name ::sessions
     ::inga/head                {}
     ::inga/body                {:>/login    {::inga/mutation              `session/login
-                                             ::inga/mutation-prefix-ident ::mutation-prefix
+                                             ::inga/mutation-prefix-ident ::query/mutation-prefix
                                              ::inga/->query               `inga/content->form-query
                                              ::inga/->data                `inga/data->form
                                              ::inga/->ui                  `bs.ui/ui-form}
@@ -120,16 +57,17 @@
                                              ::inga/->query            `inga/content->table-query
                                              ::inga/->data             `inga/data->table
                                              ::inga/->ui               `bs.ui/ui-table
-                                             ::inga/join-key           ::all-sessions}
+                                             ::inga/join-key           ::query/all-sessions}
                                 :>/users    {::inga/ident-key          :>/a
                                              ::inga/display-properties [:app.user/id
-                                                                        :app.user/username]
+                                                                        :app.user/username
+                                                                        ::user/session-count]
                                              ::inga/->query            `inga/content->table-query
                                              ::inga/->data             `inga/data->table
                                              ::inga/->ui               `bs.ui/ui-table
-                                             ::inga/join-key           ::all-users}
+                                             ::inga/join-key           ::query/all-users}
                                 :>/create   {::inga/mutation              `session/create-user
-                                             ::inga/mutation-prefix-ident ::mutation-prefix
+                                             ::inga/mutation-prefix-ident ::query/mutation-prefix
                                              ::inga/->query               `inga/content->form-query
                                              ::inga/->data                `inga/data->form
                                              ::inga/->ui                  `bs.ui/ui-form}}
@@ -144,7 +82,7 @@
                              (concat
                                pc/connect-resolvers
                                [pc/index-explorer-resolver]
-                               (register)
+                               (query/register)
                                (user/register)
                                (todo/register)
                                (session/register)))
@@ -181,7 +119,7 @@
                                                                (not authed?) (update ::inga/body dissoc :>/create :>/new-todo)
                                                                show-login?
                                                                (assoc ::inga/body {:>/login {::inga/mutation              `session/login
-                                                                                             ::inga/mutation-prefix-ident ::mutation-prefix
+                                                                                             ::inga/mutation-prefix-ident ::query/mutation-prefix
                                                                                              ::inga/->query               `inga/content->form-query
                                                                                              ::inga/->data                `inga/data->form
                                                                                              ::inga/->ui                  `bs.ui/ui-form}}))]

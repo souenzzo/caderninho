@@ -15,6 +15,18 @@
                 :app_user/username
                 (hash-map :app.user/username))))
    (pc/resolver
+     `session-count
+     {::pc/input  #{:app.user/id}
+      ::pc/output [::session-count]}
+     (fn [{::entity-db/keys [conn]} {:app.user/keys [id]}]
+       {::session-count (->> ["SELECT COUNT(*)
+                               FROM app_session
+                               WHERE authed = ?"
+                              id]
+                             (jdbc/execute! conn)
+                             first
+                             :count)}))
+   (pc/resolver
      `todo-id->user-id
      {::pc/input  #{:app.todo/id}
       ::pc/output [:app.user/id]}
