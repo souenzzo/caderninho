@@ -3,7 +3,7 @@
     <module name="caderninho" />
     <setting name="replType" value="NREPL" />
     <setting name="execution" value="INTELLIJ" />
-    <setting name="jvmArgs" value="" />
+    <setting name="jvmArgs" value="-Dclojure.core.async.go-checking=true" />
     <setting name="parameters" value="" />
     <environment name="JDBC_DATABASE_URL" value="jdbc:postgresql://127.0.0.1:5432/caderninho?user=postgres&amp;password=postgres" />
     <environment name="PORT" value="8080" />
