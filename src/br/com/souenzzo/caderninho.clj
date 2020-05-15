@@ -4,18 +4,21 @@
             [hiccup2.core :as h]
             [io.pedestal.http :as http]
             [io.pedestal.http.csrf :as csrf]
+            [br.com.souenzzo.caderninho.session :as session]
             [net.molequedeideias.inga :as inga]
             [net.molequedeideias.inga-bootstrap.page :as bs.page]
             [net.molequedeideias.inga-bootstrap.ui :as bs.ui]
+            [br.com.souenzzo.caderninho.entity-db :as entity-db]
             [net.molequedeideias.inga.pedestal :as inga.pedestal]
             [next.jdbc :as jdbc]
+            [br.com.souenzzo.caderninho.todo :as todo]
+            [br.com.souenzzo.caderninho.user :as user]
             [com.wsscode.pathom.trace :as pt]
             [com.rpl.specter :as sp]
             [clojure.spec.alpha :as s]
             [spec-coerce.core :as sc])
-  (:import (java.net URLDecoder URLEncoder)
-           (java.nio.charset StandardCharsets)
-           (java.util UUID)))
+  (:import (java.net URLEncoder)
+           (java.nio.charset StandardCharsets)))
 
 (set! *warn-on-reflection* true)
 
@@ -24,65 +27,43 @@
 
 (s/def :edn-query-language.pagination/elements-per-page integer?)
 
-(defn csrf->values
-  [csrf]
-  (if (string? csrf)
-    {"__anti-forgery-token" csrf}
-    {}))
 
 (defn register
   []
   [(pc/resolver
-     `read-token
-     {::pc/output [::read-token]}
-     (fn [env input]
-       {::read-token (-> env
-                         :path-params
-                         :csrf
-                         str
-                         (URLDecoder/decode (str StandardCharsets/UTF_8)))}))
+     `all-sessions
+     {::pc/output [::all-sessions]}
+     (fn [{::entity-db/keys [conn]} input]
+       (let [edges (for [{:app_session/keys [id csrf]} (jdbc/execute! conn ["SELECT id, csrf FROM app_session"])]
+                     {:app.session/id     id
+                      :app.session/values (pr-str (csrf->values csrf))})]
+         {::all-sessions {:edn-query-language.pagination/edges edges}})))
    (pc/resolver
-     `session-values
-     {::pc/input  #{::session-key}
-      ::pc/output [::session-values]}
-     (fn [{::keys [conn]} {::keys [session-key]}]
-       {::session-values (-> (when (string? session-key)
-                               (jdbc/execute! conn ["SELECT csrf FROM app_session WHERE id = ?"
-                                                    (UUID/fromString session-key)]))
-                             first
-                             :app_session/csrf
-                             csrf->values)}))
-   (pc/mutation
-     `write-sesison
-     {::pc/params [::session-key
-                   ::session-values]}
-     (fn [{::keys [conn]} {::keys [session-key
-                                   session-values]}]
-       (let [session-key (if (string? session-key)
-                           (UUID/fromString ^String session-key)
-                           (UUID/randomUUID))]
-         (jdbc/execute! conn ["INSERT INTO app_session (id, csrf) VALUES (?, ?)"
-                              session-key (get session-values "__anti-forgery-token")])
-         {::session-key session-key})))
+     `all-users
+     {::pc/output [::all-users]}
+     (fn [{::entity-db/keys [conn]} input]
+       (let [edges (for [{:app_user/keys [id]} (jdbc/execute! conn ["SELECT id FROM app_user"])]
+                     {:app.user/id id})]
+         {::all-users {:edn-query-language.pagination/edges edges}})))
    (pc/resolver
      `all-todos
-     {::pc/params [::current-username
+     {::pc/params [::session/current-username
                    :edn-query-language.pagination/first-element-index
                    :edn-query-language.pagination/elements-per-page]
       ::pc/output [::all-todos]}
-     (fn [{:keys  [parser]
-           ::keys [conn]
-           :as    env} input]
-       (let [{::keys [current-username]
+     (fn [{:keys            [parser]
+           ::entity-db/keys [conn]
+           :as              env} input]
+       (let [{::session/keys [current-username]
               :edn-query-language.pagination/keys
-                     [first-element-index
-                      elements-per-page]
-              :or    {first-element-index 0
-                      elements-per-page   3}} (p/params env)
+                             [first-element-index
+                              elements-per-page]
+              :or            {first-element-index 0
+                              elements-per-page   3}} (p/params env)
              current-username (or current-username
                                   (-> env
-                                      (parser [::current-username])
-                                      ::current-username))
+                                      (parser [::session/current-username])
+                                      ::session/current-username))
              edges (->> ["SELECT app_todo.id
                           FROM app_todo
                           JOIN app_user ON app_todo.author = app_user.id
@@ -96,138 +77,16 @@
                         (map (comp (partial hash-map :app.todo/id)
                                    :app_todo/id)))]
          {::all-todos {:edn-query-language.pagination/edges               edges
-                       ::current-username                                 current-username
+                       ::session/current-username                         current-username
                        :edn-query-language.pagination/elements-per-page   elements-per-page
                        :edn-query-language.pagination/first-element-index first-element-index}})))
-
-   (pc/resolver
-     `all-users
-     {::pc/output [::all-users]}
-     (fn [{::keys [conn]} input]
-       (let [edges (for [{:app_user/keys [id]} (jdbc/execute! conn ["SELECT id FROM app_user"])]
-                     {:app.user/id id})]
-         {::all-users {:edn-query-language.pagination/edges edges}})))
-   (pc/resolver
-     `all-sessions
-     {::pc/output [::all-sessions]}
-     (fn [{::keys [conn]} input]
-       (let [edges (for [{:app_session/keys [id csrf]} (jdbc/execute! conn ["SELECT id, csrf FROM app_session"])]
-                     {:app.session/id     id
-                      :app.session/values (pr-str (csrf->values csrf))})]
-         {::all-sessions {:edn-query-language.pagination/edges edges}})))
    (pc/resolver
      `mutation-prefix
      {::pc/output [::mutation-prefix]}
      (fn [{::csrf/keys [anti-forgery-token]} _]
        {::mutation-prefix (str "/mutation/" (URLEncoder/encode (str anti-forgery-token)
-                                                               (str StandardCharsets/UTF_8)))}))
-   (pc/resolver
-     `user-id->username
-     {::pc/input  #{:app.user/id}
-      ::pc/output [:app.user/username]}
-     (fn [{::keys [conn]} {:app.user/keys [id]}]
-       (some->> (jdbc/execute! conn ["SELECT username FROM app_user WHERE id = ?" id])
-                first
-                :app_user/username
-                (hash-map :app.user/username))))
-   (pc/resolver
-     `todo-id->note
-     {::pc/input  #{:app.todo/id}
-      ::pc/output [:app.todo/note]}
-     (fn [{::keys [conn]} {:app.todo/keys [id]}]
-       (some->> (jdbc/execute! conn ["SELECT note FROM app_todo WHERE id = ?" id])
-                first
-                :app_todo/note
-                (hash-map :app.todo/note))))
-   (pc/resolver
-     `todo-id->user-id
-     {::pc/input  #{:app.todo/id}
-      ::pc/output [:app.user/id]}
-     (fn [{::keys [conn]} {:app.todo/keys [id]}]
-       (comment
-         (jdbc/execute!
-           @conn
-           ["SELECT *
-             FROM app_todo
-             WHERE author = ANY(?)"
-            (int-array [1 3])]))
-       (some->> (jdbc/execute! conn ["SELECT author FROM app_todo WHERE id = ?" id])
-                first
-                :app_todo/author
-                (hash-map :app.user/id))))
-   (pc/resolver
-     `session-id->user-id
-     {::pc/input  #{:app.session/id}
-      ::pc/output [:app.user/id]}
-     (fn [{::keys [conn]} {:app.session/keys [id]}]
-       (some->> (jdbc/execute! conn ["SELECT authed FROM app_session WHERE id = ?" id])
-                first
-                :app_session/authed
-                (hash-map :app.user/id))))
-   (pc/mutation
-     `create-user
-     {::pc/params [:app.user/username]}
-     (fn [{::csrf/keys [anti-forgery-token]
-           ::keys      [conn]} {:app.user/keys [username]}]
-       (jdbc/with-transaction [tx conn]
-         (jdbc/execute! tx ["INSERT INTO app_user (username) VALUES (?)"
-                            username])
-         (let [session-id (-> (jdbc/execute! tx ["SELECT id FROM app_session WHERE csrf = ?"
-                                                 anti-forgery-token])
-                              first
-                              :app_session/id)
-               user-id (-> (jdbc/execute! tx ["SELECT id FROM app_user WHERE username = ?"
-                                              username])
-                           first
-                           :app_user/id)]
-           (jdbc/execute! conn ["UPDATE app_session SET authed = ? WHERE id = ?"
-                                user-id session-id])))
-       {}))
-   (pc/mutation
-     `new-todo
-     {::pc/params [:app.todo/note]}
-     (fn [{::csrf/keys [anti-forgery-token]
-           ::keys      [conn]} {:app.todo/keys [note]}]
-       (jdbc/with-transaction [tx conn]
-         (let [user-id (-> (jdbc/execute! tx ["SELECT authed FROM app_session WHERE csrf = ?"
-                                              anti-forgery-token])
-                           first
-                           :app_session/authed)]
-           (jdbc/execute! tx ["INSERT INTO app_todo (note, author) VALUES (?, ?)"
-                              note user-id])))
-       {}))
-   (pc/resolver
-     `current-username
-     {::pc/output [::current-username]}
-     (fn [{::csrf/keys [anti-forgery-token]
-           ::keys      [conn]} _]
-       (->> ["SELECT app_user.username
-              FROM app_user
-              JOIN app_session ON  app_session.csrf = ?
-              WHERE app_session.authed = app_user.id"
-             anti-forgery-token]
-            (jdbc/execute! conn)
-            first
-            :app_user/username
-            (hash-map ::current-username))))
-   (pc/single-attr-resolver ::current-username ::authed? boolean)
-   (pc/mutation
-     `login
-     {::pc/params [::current-username]}
-     (fn [{::csrf/keys [anti-forgery-token]
-           ::keys      [conn]} {::keys [current-username]}]
-       (jdbc/with-transaction [tx conn]
-         (let [user-id (-> (jdbc/execute! tx ["SELECT id FROM app_user WHERE username = ?"
-                                              current-username])
-                           first
-                           :app_user/id)
-               session-id (-> (jdbc/execute! tx ["SELECT id FROM app_session WHERE csrf = ?"
-                                                 anti-forgery-token])
-                              first
-                              :app_session/id)]
-           (jdbc/execute! conn ["UPDATE app_session SET authed = ? WHERE id = ?"
-                                user-id session-id]))
-         {})))])
+                                                               (str StandardCharsets/UTF_8)))}))])
+
 
 (defn service
   [env]
@@ -235,7 +94,10 @@
                              (concat
                                pc/connect-resolvers
                                [pc/index-explorer-resolver]
-                               (register)))
+                               (register)
+                               (user/register)
+                               (todo/register)
+                               (session/register)))
         ref-indexes (atom indexes)
         parser (p/parser {::p/plugins [(pc/connect-plugin {::pc/indexes ref-indexes})
                                        pt/trace-plugin]
@@ -255,13 +117,14 @@
      ::inga.pedestal/form-mutation-prefix "/mutation/:csrf"
      ::inga.pedestal/indexes              indexes
      ::inga.pedestal/parser               parser
-     ::inga.pedestal/read-token           ::read-token
-     ::inga.pedestal/session-key-ident    ::session-key
-     ::inga.pedestal/session-data-ident   ::session-values
-     ::inga.pedestal/session-write-sym    `write-sesison
+     ::inga.pedestal/read-token           ::session/read-token
+     ::inga.pedestal/session-key-ident    ::session/session-key
+     ::inga.pedestal/session-data-ident   ::session/session-values
+     ::inga.pedestal/session-write-sym    `session/write-sesison
      ::inga.pedestal/pages                [{::inga.pedestal/path       "/"
                                             ::inga.pedestal/route-name ::index
                                             ::inga/head                {}
+                                            ::inga/map-params          {:edn-query-language.pagination/elements-per-page :n}
                                             ::inga/body                {:>/all-todos {::inga/ident-key          :>/a
                                                                                       ::inga/display-properties [:app.todo/id
                                                                                                                  :app.user/username
@@ -270,7 +133,7 @@
                                                                                       ::inga/->data             `inga/data->table
                                                                                       ::inga/->ui               `bs.ui/ui-table
                                                                                       ::inga/join-key           ::all-todos}
-                                                                        :>/new-todo  {::inga/mutation              `new-todo
+                                                                        :>/new-todo  {::inga/mutation              `todo/new-todo
                                                                                       ::inga/mutation-prefix-ident ::mutation-prefix
                                                                                       ::inga/->query               `inga/content->form-query
                                                                                       ::inga/->data                `inga/data->form
@@ -281,7 +144,7 @@
                                            {::inga.pedestal/path       "/sessions"
                                             ::inga.pedestal/route-name ::sessions
                                             ::inga/head                {}
-                                            ::inga/body                {:>/login    {::inga/mutation              `login
+                                            ::inga/body                {:>/login    {::inga/mutation              `session/login
                                                                                      ::inga/mutation-prefix-ident ::mutation-prefix
                                                                                      ::inga/->query               `inga/content->form-query
                                                                                      ::inga/->data                `inga/data->form
@@ -301,7 +164,7 @@
                                                                                      ::inga/->data             `inga/data->table
                                                                                      ::inga/->ui               `bs.ui/ui-table
                                                                                      ::inga/join-key           ::all-users}
-                                                                        :>/create   {::inga/mutation              `create-user
+                                                                        :>/create   {::inga/mutation              `session/create-user
                                                                                      ::inga/mutation-prefix-ident ::mutation-prefix
                                                                                      ::inga/->query               `inga/content->form-query
                                                                                      ::inga/->data                `inga/data->form
@@ -311,13 +174,13 @@
                                             ::inga/->ui                `bs.page/->ui}]
      ::inga.pedestal/page->query          (fn [{:keys [query-params]
                                                 :as   env} {::inga.pedestal/keys [route-name] :as page}]
-                                            (let [{::keys [authed?]} (parser env [::authed?])
+                                            (let [{::session/keys [authed?]} (parser env [::session/authed?])
                                                   show-login? (and (not authed?)
                                                                    (= route-name ::index))
                                                   page (cond-> (merge env page)
                                                                (not authed?) (update ::inga/body dissoc :>/create :>/new-todo)
                                                                show-login?
-                                                               (assoc ::inga/body {:>/login {::inga/mutation              `login
+                                                               (assoc ::inga/body {:>/login {::inga/mutation              `session/login
                                                                                              ::inga/mutation-prefix-ident ::mutation-prefix
                                                                                              ::inga/->query               `inga/content->form-query
                                                                                              ::inga/->data                `inga/data->form
@@ -346,8 +209,8 @@
                                                                          "\uD83D\uDCD6"]]))})]
                                              [:body
                                               (bs.page/std-header {::inga/title        "Caderninho"
-                                                                   ::inga/current-user (-> (parser env [::current-username])
-                                                                                           ::current-username
+                                                                   ::inga/current-user (-> (parser env [::session/current-username])
+                                                                                           ::session/current-username
                                                                                            str)})
                                               (bs.page/nav-menu {::inga/links [{::inga/href  "/"
                                                                                 ::inga/label "home"}

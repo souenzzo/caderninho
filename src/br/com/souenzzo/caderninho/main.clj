@@ -2,6 +2,7 @@
   (:require [io.pedestal.http :as http]
             [next.jdbc :as jdbc]
             [br.com.souenzzo.caderninho :as caderninho]
+            [br.com.souenzzo.caderninho.entity-db :as entity-db]
             [clojure.java.io :as io]
             [clojure.edn :as edn]
             [net.molequedeideias.inga.pedestal :as inga.pedestal]
@@ -92,7 +93,7 @@
     (swap! state (fn [st]
                    (when st
                      (http/stop st))
-                   (-> (caderninho/service {::caderninho/conn (jdbc/get-connection ds)})
+                   (-> (caderninho/service {::entity-db/conn (jdbc/get-connection ds)})
                        (assoc ::http/port port
                               ::http/type :jetty
                               ::http/join? false
