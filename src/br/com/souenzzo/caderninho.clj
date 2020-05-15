@@ -26,14 +26,16 @@
     ::inga.pedestal/route-name ::index
     ::inga/head                {}
     ::inga/map-params          {:edn-query-language.pagination/elements-per-page :n}
-    ::inga/body                {:>/all-todos {::inga/ident-key          :>/a
-                                              ::inga/display-properties [:app.todo/id
-                                                                         :app.user/username
-                                                                         :app.todo/note]
-                                              ::inga/->query            `inga/content->table-query
-                                              ::inga/->data             `inga/data->table
-                                              ::inga/->ui               `bs.ui/ui-table
-                                              ::inga/join-key           ::query/all-todos}
+    ::inga/body                {:>/all-todos {::inga/ident-key             :>/a
+                                              ::inga/display-properties    [:app.todo/id
+                                                                            :app.user/username
+                                                                            :app.todo/note
+                                                                            `todo/delete]
+                                              ::inga/mutation-prefix-ident ::query/mutation-prefix
+                                              ::inga/->query               `inga/content->table-query
+                                              ::inga/->data                `inga/data->table
+                                              ::inga/->ui                  `bs.ui/ui-table
+                                              ::inga/join-key              ::query/all-todos}
                                 :>/new-todo  {::inga/mutation              `todo/new-todo
                                               ::inga/mutation-prefix-ident ::query/mutation-prefix
                                               ::inga/->query               `inga/content->form-query

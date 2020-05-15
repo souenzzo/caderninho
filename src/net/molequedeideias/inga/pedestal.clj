@@ -155,7 +155,8 @@
                 [{:name  (keyword sym)
                   :enter (fn [ctx]
                            (let [tx `[(~sym ~(->> ctx :request :params (into {} (map (juxt (comp keyword key)
-                                                                                           val)))))]]
+                                                                                           val)))
+                                                  sc/coerce-structure))]]
                              (parser (:request ctx) tx)
                              (assoc ctx :response {:headers {"Location" (-> ctx :request :headers (get "referer" "/"))}
                                                    :status  303})))}]))

@@ -95,7 +95,9 @@
 
 (defn content->table-query
   [{::pc/keys [indexes]
-    ::keys    [ident-key display-properties default-params join-key]}]
+    ::keys    [ident-key display-properties
+               mutation-prefix-ident
+               default-params join-key]}]
   (let [{::pc/keys [index-mutations]} indexes
         eid-key (if (contains? default-params ident-key)
                   (find default-params ident-key)
@@ -125,7 +127,10 @@
                                                              (distinct-by :dispatch-key))
                                                            (:children (eql/query->ast display-properties)))}])}]
     (-> {:type     :root
-         :children [{:type         :join
+         :children [{:type         :prop
+                     :dispatch-key mutation-prefix-ident
+                     :key          mutation-prefix-ident}
+                    {:type         :join
                      :dispatch-key ident-key
                      :key          eid-key
                      :children     [(cond-> join-node
@@ -184,7 +189,7 @@
                      :data (s/keys :req [::pc/indexes])))
 
 (defn data->table
-  [{::keys [mutation-prefix
+  [{::keys [mutation-prefix-ident
             ident-key
             join-key
             params-as
@@ -196,6 +201,7 @@
   (let [->label (fn [ident]
                   (or (get ident-label ident)
                       (pr-str ident)))
+        mutation-prefix (get data mutation-prefix-ident)
         dispatch-as (into {}
                           (map (juxt val key))
                           params-as)
@@ -226,7 +232,7 @@
                                                    (cond-> {::value (if (keyword? value)
                                                                       (->label value)
                                                                       value)}
-                                                           mutation (assoc ::forms [{::action (str mutation-prefix dispatch-key)
+                                                           mutation (assoc ::forms [{::action (str mutation-prefix "/" dispatch-key)
                                                                                      ::inputs (for [param params]
                                                                                                 {::value   (get el param)
                                                                                                  ::name    (str (namespace param)
