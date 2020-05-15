@@ -1,32 +1,29 @@
 (ns br.com.souenzzo.caderninho
-  (:require [com.wsscode.pathom.connect :as pc]
+  (:require [br.com.souenzzo.caderninho.entity-db :as entity-db]
+            [br.com.souenzzo.caderninho.session :as session]
+            [br.com.souenzzo.caderninho.todo :as todo]
+            [br.com.souenzzo.caderninho.user :as user]
+            [clojure.spec.alpha :as s]
+            [com.rpl.specter :as sp]
+            [com.wsscode.pathom.connect :as pc]
             [com.wsscode.pathom.core :as p]
+            [com.wsscode.pathom.trace :as pt]
             [hiccup2.core :as h]
             [io.pedestal.http :as http]
             [io.pedestal.http.csrf :as csrf]
-            [br.com.souenzzo.caderninho.session :as session]
             [net.molequedeideias.inga :as inga]
             [net.molequedeideias.inga-bootstrap.page :as bs.page]
             [net.molequedeideias.inga-bootstrap.ui :as bs.ui]
-            [br.com.souenzzo.caderninho.entity-db :as entity-db]
             [net.molequedeideias.inga.pedestal :as inga.pedestal]
             [next.jdbc :as jdbc]
-            [br.com.souenzzo.caderninho.todo :as todo]
-            [br.com.souenzzo.caderninho.user :as user]
-            [com.wsscode.pathom.trace :as pt]
-            [com.rpl.specter :as sp]
-            [clojure.spec.alpha :as s]
             [spec-coerce.core :as sc])
   (:import (java.net URLEncoder)
            (java.nio.charset StandardCharsets)))
 
 (set! *warn-on-reflection* true)
 
-
 (s/def :edn-query-language.pagination/first-element-index integer?)
-
 (s/def :edn-query-language.pagination/elements-per-page integer?)
-
 
 (defn register
   []
@@ -36,7 +33,7 @@
      (fn [{::entity-db/keys [conn]} input]
        (let [edges (for [{:app_session/keys [id csrf]} (jdbc/execute! conn ["SELECT id, csrf FROM app_session"])]
                      {:app.session/id     id
-                      :app.session/values (pr-str (csrf->values csrf))})]
+                      :app.session/values (pr-str (session/csrf->values csrf))})]
          {::all-sessions {:edn-query-language.pagination/edges edges}})))
    (pc/resolver
      `all-users
@@ -87,6 +84,59 @@
        {::mutation-prefix (str "/mutation/" (URLEncoder/encode (str anti-forgery-token)
                                                                (str StandardCharsets/UTF_8)))}))])
 
+(def pages
+  [{::inga.pedestal/path       "/"
+    ::inga.pedestal/route-name ::index
+    ::inga/head                {}
+    ::inga/map-params          {:edn-query-language.pagination/elements-per-page :n}
+    ::inga/body                {:>/all-todos {::inga/ident-key          :>/a
+                                              ::inga/display-properties [:app.todo/id
+                                                                         :app.user/username
+                                                                         :app.todo/note]
+                                              ::inga/->query            `inga/content->table-query
+                                              ::inga/->data             `inga/data->table
+                                              ::inga/->ui               `bs.ui/ui-table
+                                              ::inga/join-key           ::all-todos}
+                                :>/new-todo  {::inga/mutation              `todo/new-todo
+                                              ::inga/mutation-prefix-ident ::mutation-prefix
+                                              ::inga/->query               `inga/content->form-query
+                                              ::inga/->data                `inga/data->form
+                                              ::inga/->ui                  `bs.ui/ui-form}}
+    ::inga/->query             `bs.page/->query
+    ::inga/->data              `bs.page/->tree
+    ::inga/->ui                `bs.page/->ui}
+   {::inga.pedestal/path       "/sessions"
+    ::inga.pedestal/route-name ::sessions
+    ::inga/head                {}
+    ::inga/body                {:>/login    {::inga/mutation              `session/login
+                                             ::inga/mutation-prefix-ident ::mutation-prefix
+                                             ::inga/->query               `inga/content->form-query
+                                             ::inga/->data                `inga/data->form
+                                             ::inga/->ui                  `bs.ui/ui-form}
+                                :>/sessions {::inga/ident-key          :>/a
+                                             ::inga/display-properties [:app.session/id
+                                                                        :app.session/values
+                                                                        :app.user/username]
+                                             ::inga/->query            `inga/content->table-query
+                                             ::inga/->data             `inga/data->table
+                                             ::inga/->ui               `bs.ui/ui-table
+                                             ::inga/join-key           ::all-sessions}
+                                :>/users    {::inga/ident-key          :>/a
+                                             ::inga/display-properties [:app.user/id
+                                                                        :app.user/username]
+                                             ::inga/->query            `inga/content->table-query
+                                             ::inga/->data             `inga/data->table
+                                             ::inga/->ui               `bs.ui/ui-table
+                                             ::inga/join-key           ::all-users}
+                                :>/create   {::inga/mutation              `session/create-user
+                                             ::inga/mutation-prefix-ident ::mutation-prefix
+                                             ::inga/->query               `inga/content->form-query
+                                             ::inga/->data                `inga/data->form
+                                             ::inga/->ui                  `bs.ui/ui-form}}
+    ::inga/->query             `bs.page/->query
+    ::inga/->data              `bs.page/->tree
+    ::inga/->ui                `bs.page/->ui}])
+
 
 (defn service
   [env]
@@ -121,57 +171,7 @@
      ::inga.pedestal/session-key-ident    ::session/session-key
      ::inga.pedestal/session-data-ident   ::session/session-values
      ::inga.pedestal/session-write-sym    `session/write-sesison
-     ::inga.pedestal/pages                [{::inga.pedestal/path       "/"
-                                            ::inga.pedestal/route-name ::index
-                                            ::inga/head                {}
-                                            ::inga/map-params          {:edn-query-language.pagination/elements-per-page :n}
-                                            ::inga/body                {:>/all-todos {::inga/ident-key          :>/a
-                                                                                      ::inga/display-properties [:app.todo/id
-                                                                                                                 :app.user/username
-                                                                                                                 :app.todo/note]
-                                                                                      ::inga/->query            `inga/content->table-query
-                                                                                      ::inga/->data             `inga/data->table
-                                                                                      ::inga/->ui               `bs.ui/ui-table
-                                                                                      ::inga/join-key           ::all-todos}
-                                                                        :>/new-todo  {::inga/mutation              `todo/new-todo
-                                                                                      ::inga/mutation-prefix-ident ::mutation-prefix
-                                                                                      ::inga/->query               `inga/content->form-query
-                                                                                      ::inga/->data                `inga/data->form
-                                                                                      ::inga/->ui                  `bs.ui/ui-form}}
-                                            ::inga/->query             `bs.page/->query
-                                            ::inga/->data              `bs.page/->tree
-                                            ::inga/->ui                `bs.page/->ui}
-                                           {::inga.pedestal/path       "/sessions"
-                                            ::inga.pedestal/route-name ::sessions
-                                            ::inga/head                {}
-                                            ::inga/body                {:>/login    {::inga/mutation              `session/login
-                                                                                     ::inga/mutation-prefix-ident ::mutation-prefix
-                                                                                     ::inga/->query               `inga/content->form-query
-                                                                                     ::inga/->data                `inga/data->form
-                                                                                     ::inga/->ui                  `bs.ui/ui-form}
-                                                                        :>/sessions {::inga/ident-key          :>/a
-                                                                                     ::inga/display-properties [:app.session/id
-                                                                                                                :app.session/values
-                                                                                                                :app.user/username]
-                                                                                     ::inga/->query            `inga/content->table-query
-                                                                                     ::inga/->data             `inga/data->table
-                                                                                     ::inga/->ui               `bs.ui/ui-table
-                                                                                     ::inga/join-key           ::all-sessions}
-                                                                        :>/users    {::inga/ident-key          :>/a
-                                                                                     ::inga/display-properties [:app.user/id
-                                                                                                                :app.user/username]
-                                                                                     ::inga/->query            `inga/content->table-query
-                                                                                     ::inga/->data             `inga/data->table
-                                                                                     ::inga/->ui               `bs.ui/ui-table
-                                                                                     ::inga/join-key           ::all-users}
-                                                                        :>/create   {::inga/mutation              `session/create-user
-                                                                                     ::inga/mutation-prefix-ident ::mutation-prefix
-                                                                                     ::inga/->query               `inga/content->form-query
-                                                                                     ::inga/->data                `inga/data->form
-                                                                                     ::inga/->ui                  `bs.ui/ui-form}}
-                                            ::inga/->query             `bs.page/->query
-                                            ::inga/->data              `bs.page/->tree
-                                            ::inga/->ui                `bs.page/->ui}]
+     ::inga.pedestal/pages                pages
      ::inga.pedestal/page->query          (fn [{:keys [query-params]
                                                 :as   env} {::inga.pedestal/keys [route-name] :as page}]
                                             (let [{::session/keys [authed?]} (parser env [::session/authed?])
