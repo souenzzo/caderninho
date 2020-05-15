@@ -127,17 +127,18 @@
                                                              (distinct-by :dispatch-key))
                                                            (:children (eql/query->ast display-properties)))}])}]
     (-> {:type     :root
-         :children [{:type         :prop
-                     :dispatch-key mutation-prefix-ident
-                     :key          mutation-prefix-ident}
-                    {:type         :join
-                     :dispatch-key ident-key
-                     :key          eid-key
-                     :children     [(cond-> join-node
-                                            join-params (assoc :params join-params))]}
-                    {:type         :prop
-                     :dispatch-key ::pc/indexes
-                     :key          ::pc/indexes}]}
+         :children (remove nil? [(when mutation-prefix-ident
+                                   {:type         :prop
+                                    :dispatch-key mutation-prefix-ident
+                                    :key          mutation-prefix-ident})
+                                 {:type         :join
+                                  :dispatch-key ident-key
+                                  :key          eid-key
+                                  :children     [(cond-> join-node
+                                                         join-params (assoc :params join-params))]}
+                                 {:type         :prop
+                                  :dispatch-key ::pc/indexes
+                                  :key          ::pc/indexes}])}
         eql/ast->query)))
 
 (s/fdef content->table-query
