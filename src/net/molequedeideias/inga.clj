@@ -125,25 +125,27 @@
 (defn content->table-query
   [{::pc/keys [indexes]
     ::keys    [display-properties default-params join-key]}]
-  (let [{::pc/keys [index-mutations]} indexes
-        join-node {:type         :join
+  (let [join-node {:type         :join
                    :dispatch-key join-key
                    :key          join-key
+                   :params       (assoc default-params
+                                   :pathom/as ::edges)
                    :children     (sequence
                                    (comp
-                                     (map (fn [{:keys [dispatch-key] :as node}]
-                                            (if-let [{::pc/keys [params]} (get index-mutations dispatch-key)]
+                                     (map (fn [prop]
+                                            (if-let [{::pc/keys [params]} (pc/mutation-data indexes prop)]
                                               (:children (eql/query->ast params))
-                                              [node])))
+                                              [{:type         :prop
+                                                :key          prop
+                                                :dispatch-key prop}])))
                                      cat
                                      (distinct-by :dispatch-key))
-                                   (:children (eql/query->ast (filter keyword? display-properties))))}]
+                                   display-properties)}]
     (-> {:type     :root
          :children (concat [{:type         :prop
                              :dispatch-key ::mutation-prefix
                              :key          ::mutation-prefix}
-                            (cond-> join-node
-                                    default-params (assoc :params default-params))
+                            join-node
                             {:type         :prop
                              :dispatch-key ::pc/indexes
                              :key          ::pc/indexes}]
@@ -153,7 +155,7 @@
 (defn data->table
   [{::keys [join-key params-as default-params ident-label display-properties]}
    {::pc/keys [indexes]
-    ::keys    [mutation-prefix]
+    ::keys    [mutation-prefix edges]
     :as       el}]
   (let [->label (fn [ident]
                   (or (get ident-label ident)
@@ -162,7 +164,6 @@
                           (map (juxt val key))
                           params-as)
         {::pc/keys [index-mutations]} indexes
-        edges (get el join-key)
         {:keys [children]} (eql/query->ast display-properties)]
     {::forms         (remove
                        (comp empty? ::inputs)
