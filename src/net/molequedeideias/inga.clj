@@ -74,7 +74,7 @@
                (vswap! seen conj id)
                (rf coll el)))))))))
 
-(defn ident-params-ast
+(defn join-params-ast
   [{::pc/keys [indexes]} ident]
   (let [{::pc/keys [index-oir index-resolvers]} indexes]
     {:type     :root
@@ -92,13 +92,13 @@
 (defn content->form-query
   [{::keys [mutation] :as env}]
   (-> {:type     :root
-       :children (concat [{:type         :prop
-                           :dispatch-key ::mutation-prefix
-                           :key          ::mutation-prefix}]
-                         (-> (pc/mutation-data env mutation)
-                             ::pc/params
-                             eql/query->ast
-                             :children))}
+       :children (-> (pc/mutation-data env mutation)
+                     ::pc/params
+                     eql/query->ast
+                     :children
+                     (conj {:type         :prop
+                            :dispatch-key ::mutation-prefix
+                            :key          ::mutation-prefix}))}
       eql/ast->query))
 
 (defn data->form
@@ -114,30 +114,36 @@
                  ::name  (str (namespace dispatch-key)
                               "/" (name dispatch-key))})}))
 
+(defn display-properties-ast
+  [{::keys [display-properties]
+    :as    env}]
+  {:type     :root
+   :children (into []
+                   (comp
+                     (map (fn [prop]
+                            (if-let [{::pc/keys [params]} (pc/mutation-data env prop)]
+                              (:children (eql/query->ast params))
+                              [{:type         :prop
+                                :key          prop
+                                :dispatch-key prop}])))
+                     cat
+                     (distinct-by :dispatch-key))
+                   display-properties)})
+
 (defn content->table-query
-  [{::keys [display-properties default-params join-key] :as env}]
-  (let [join-node {:type         :join
-                   :dispatch-key join-key
-                   :key          join-key
-                   :params       (assoc default-params
-                                   :pathom/as ::edges)
-                   :children     (into []
-                                       (comp
-                                         (map (fn [prop]
-                                                (if-let [{::pc/keys [params]} (pc/mutation-data env prop)]
-                                                  (:children (eql/query->ast params))
-                                                  [{:type         :prop
-                                                    :key          prop
-                                                    :dispatch-key prop}])))
-                                         cat
-                                         (distinct-by :dispatch-key))
-                                       display-properties)}]
-    (-> {:type     :root
-         :children (concat [{:type         :prop
-                             :dispatch-key ::mutation-prefix
-                             :key          ::mutation-prefix}
-                            join-node]
-                           (:children (ident-params-ast env join-key)))}
+  [{::keys [default-params join-key] :as env}]
+  (let [join-node (assoc (display-properties-ast env)
+                    :type :join
+                    :dispatch-key join-key
+                    :key join-key
+                    :params (assoc default-params
+                              :pathom/as ::edges))]
+    (-> (join-params-ast env join-key)
+        (update :children conj
+                {:type         :prop
+                 :dispatch-key ::mutation-prefix
+                 :key          ::mutation-prefix}
+                join-node)
         eql/ast->query)))
 
 (defn data->table
@@ -152,7 +158,7 @@
                           params-as)]
     {::forms         (remove
                        (comp empty? ::inputs)
-                       [{::inputs (for [{:keys [dispatch-key]} (:children (ident-params-ast env join-key))
+                       [{::inputs (for [{:keys [dispatch-key]} (:children (join-params-ast env join-key))
                                         :let [ident (get dispatch-as dispatch-key dispatch-key)]]
                                     {::value (second (or (find el dispatch-key)
                                                          (find default-params dispatch-key)))
