@@ -93,23 +93,22 @@
 (defn content->form-query
   [{::pc/keys [indexes]
     ::keys    [mutation]}]
-  (let [params (-> (pc/mutation-data indexes mutation)
-                   ::pc/params
-                   eql/query->ast
-                   :children)]
-    (-> {:type     :root
-         :children (concat [{:type         :prop
-                             :dispatch-key ::pc/indexes
-                             :key          ::pc/indexes}
-                            {:type         :prop
-                             :dispatch-key ::mutation-prefix
-                             :key          ::mutation-prefix}]
-                           params)}
-        eql/ast->query)))
+  (-> {:type     :root
+       :children (concat [{:type         :prop
+                           :dispatch-key ::pc/indexes
+                           :key          ::pc/indexes}
+                          {:type         :prop
+                           :dispatch-key ::mutation-prefix
+                           :key          ::mutation-prefix}]
+                         (-> indexes
+                             (pc/mutation-data mutation)
+                             ::pc/params
+                             eql/query->ast
+                             :children))}
+      eql/ast->query))
 
 (defn data->form
-  [{::keys [mutation]
-    :as    env}
+  [{::keys [mutation]}
    {::pc/keys [indexes]
     ::keys    [mutation-prefix]
     :as       data}]
@@ -125,16 +124,8 @@
 
 (defn content->table-query
   [{::pc/keys [indexes]
-    ::keys    [ident-key display-properties default-params join-key]}]
+    ::keys    [display-properties default-params join-key]}]
   (let [{::pc/keys [index-mutations]} indexes
-        eid-key (if (contains? default-params ident-key)
-                  (find default-params ident-key)
-                  ident-key)
-        join-params (when default-params
-                      (let [after (dissoc default-params ident-key)]
-                        (if (empty? after)
-                          nil
-                          after)))
         join-node {:type         :join
                    :dispatch-key join-key
                    :key          join-key
@@ -146,28 +137,24 @@
                                               [node])))
                                      cat
                                      (distinct-by :dispatch-key))
-                                   (:children (eql/query->ast display-properties)))}]
+                                   (:children (eql/query->ast (filter keyword? display-properties))))}]
     (-> {:type     :root
-         :children [{:type         :prop
-                     :dispatch-key ::mutation-prefix
-                     :key          ::mutation-prefix}
-                    {:type         :join
-                     :dispatch-key ident-key
-                     :key          eid-key
-                     :children     (concat [(cond-> join-node
-                                                    join-params (assoc :params join-params))]
-
-                                           (:children (ident-params-ast indexes join-key)))}
-                    {:type         :prop
-                     :dispatch-key ::pc/indexes
-                     :key          ::pc/indexes}]}
+         :children (concat [{:type         :prop
+                             :dispatch-key ::mutation-prefix
+                             :key          ::mutation-prefix}
+                            (cond-> join-node
+                                    default-params (assoc :params default-params))
+                            {:type         :prop
+                             :dispatch-key ::pc/indexes
+                             :key          ::pc/indexes}]
+                           (:children (ident-params-ast indexes join-key)))}
         eql/ast->query)))
 
 (defn data->table
-  [{::keys [ident-key join-key params-as default-params ident-label display-properties]}
+  [{::keys [join-key params-as default-params ident-label display-properties]}
    {::pc/keys [indexes]
     ::keys    [mutation-prefix]
-    :as       data}]
+    :as       el}]
   (let [->label (fn [ident]
                   (or (get ident-label ident)
                       (pr-str ident)))
@@ -175,9 +162,6 @@
                           (map (juxt val key))
                           params-as)
         {::pc/keys [index-mutations]} indexes
-        el (get-in data [(if (contains? default-params ident-key)
-                           (find default-params ident-key)
-                           ident-key)])
         edges (get el join-key)
         {:keys [children]} (eql/query->ast display-properties)]
     {::forms         (remove
