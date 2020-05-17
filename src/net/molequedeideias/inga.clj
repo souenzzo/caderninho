@@ -1,7 +1,6 @@
 (ns net.molequedeideias.inga
   (:require [edn-query-language.core :as eql]
-            [com.wsscode.pathom.connect :as pc]
-            [clojure.spec.alpha :as s]))
+            [com.wsscode.pathom.connect :as pc]))
 
 (defn show
   [x]
@@ -76,44 +75,37 @@
                (rf coll el)))))))))
 
 (defn ident-params-ast
-  [indexes ident]
+  [{::pc/keys [indexes]} ident]
   (let [{::pc/keys [index-oir index-resolvers]} indexes]
     {:type     :root
-     :children (sequence
-                 (comp (map val)
-                       cat
-                       (map (partial get index-resolvers))
-                       (map ::pc/params)
-                       (map eql/query->ast)
-                       (map :children)
-                       cat
-                       (distinct-by :dispatch-key))
-                 (get index-oir ident))}))
+     :children (into []
+                     (comp (map val)
+                           cat
+                           (map (partial get index-resolvers))
+                           (map ::pc/params)
+                           (map eql/query->ast)
+                           (map :children)
+                           cat
+                           (distinct-by :dispatch-key))
+                     (get index-oir ident))}))
 
 (defn content->form-query
-  [{::pc/keys [indexes]
-    ::keys    [mutation]}]
+  [{::keys [mutation] :as env}]
   (-> {:type     :root
        :children (concat [{:type         :prop
-                           :dispatch-key ::pc/indexes
-                           :key          ::pc/indexes}
-                          {:type         :prop
                            :dispatch-key ::mutation-prefix
                            :key          ::mutation-prefix}]
-                         (-> indexes
-                             (pc/mutation-data mutation)
+                         (-> (pc/mutation-data env mutation)
                              ::pc/params
                              eql/query->ast
                              :children))}
       eql/ast->query))
 
 (defn data->form
-  [{::keys [mutation]}
-   {::pc/keys [indexes]
-    ::keys    [mutation-prefix]
-    :as       data}]
-  (let [{::pc/keys [index-mutations]} indexes
-        {::pc/keys [params]} (get index-mutations mutation)]
+  [{::keys [mutation] :as env}
+   {::keys [mutation-prefix]
+    :as    data}]
+  (let [{::pc/keys [params]} (pc/mutation-data env mutation)]
     {::action (str mutation-prefix "/" mutation)
      ::label  (pr-str mutation)
      ::inputs (for [{:keys [dispatch-key params]} (:children (eql/query->ast params))]
@@ -123,51 +115,44 @@
                               "/" (name dispatch-key))})}))
 
 (defn content->table-query
-  [{::pc/keys [indexes]
-    ::keys    [display-properties default-params join-key]}]
+  [{::keys [display-properties default-params join-key] :as env}]
   (let [join-node {:type         :join
                    :dispatch-key join-key
                    :key          join-key
                    :params       (assoc default-params
                                    :pathom/as ::edges)
-                   :children     (sequence
-                                   (comp
-                                     (map (fn [prop]
-                                            (if-let [{::pc/keys [params]} (pc/mutation-data indexes prop)]
-                                              (:children (eql/query->ast params))
-                                              [{:type         :prop
-                                                :key          prop
-                                                :dispatch-key prop}])))
-                                     cat
-                                     (distinct-by :dispatch-key))
-                                   display-properties)}]
+                   :children     (into []
+                                       (comp
+                                         (map (fn [prop]
+                                                (if-let [{::pc/keys [params]} (pc/mutation-data env prop)]
+                                                  (:children (eql/query->ast params))
+                                                  [{:type         :prop
+                                                    :key          prop
+                                                    :dispatch-key prop}])))
+                                         cat
+                                         (distinct-by :dispatch-key))
+                                       display-properties)}]
     (-> {:type     :root
          :children (concat [{:type         :prop
                              :dispatch-key ::mutation-prefix
                              :key          ::mutation-prefix}
-                            join-node
-                            {:type         :prop
-                             :dispatch-key ::pc/indexes
-                             :key          ::pc/indexes}]
-                           (:children (ident-params-ast indexes join-key)))}
+                            join-node]
+                           (:children (ident-params-ast env join-key)))}
         eql/ast->query)))
 
 (defn data->table
-  [{::keys [join-key params-as default-params ident-label display-properties]}
-   {::pc/keys [indexes]
-    ::keys    [mutation-prefix edges]
-    :as       el}]
+  [{::keys [join-key params-as default-params ident-label display-properties] :as env}
+   {::keys [mutation-prefix edges]
+    :as    el}]
   (let [->label (fn [ident]
                   (or (get ident-label ident)
                       (pr-str ident)))
         dispatch-as (into {}
                           (map (juxt val key))
-                          params-as)
-        {::pc/keys [index-mutations]} indexes
-        {:keys [children]} (eql/query->ast display-properties)]
+                          params-as)]
     {::forms         (remove
                        (comp empty? ::inputs)
-                       [{::inputs (for [{:keys [dispatch-key]} (:children (ident-params-ast indexes join-key))
+                       [{::inputs (for [{:keys [dispatch-key]} (:children (ident-params-ast env join-key))
                                         :let [ident (get dispatch-as dispatch-key dispatch-key)]]
                                     {::value (second (or (find el dispatch-key)
                                                          (find default-params dispatch-key)))
@@ -176,17 +161,17 @@
                                                (str (namespace ident)
                                                     "/" (name ident))
                                                (name ident))})}])
-     ::vs-table-body {::head (for [{:keys [dispatch-key]} children]
-                               {::label (->label dispatch-key)})
+     ::vs-table-body {::head (for [prop display-properties]
+                               {::label (->label prop)})
                       ::rows (for [el edges]
-                               {::columns (for [{:keys [dispatch-key]} children
+                               {::columns (for [prop display-properties
                                                 :let [{::pc/keys [params]
-                                                       :as       mutation} (get index-mutations dispatch-key)
-                                                      value (get el dispatch-key)]]
+                                                       :as       mutation} (pc/mutation-data env prop)
+                                                      value (get el prop)]]
                                             (cond-> {::value (if (keyword? value)
                                                                (->label value)
                                                                value)}
-                                                    mutation (assoc ::forms [{::action (str mutation-prefix "/" dispatch-key)
+                                                    mutation (assoc ::forms [{::action (str mutation-prefix "/" prop)
                                                                               ::inputs (for [param params]
                                                                                          {::value   (get el param)
                                                                                           ::name    (str (namespace param)
