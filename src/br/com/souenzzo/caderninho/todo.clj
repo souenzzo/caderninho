@@ -23,7 +23,6 @@
      `delete
      {::pc/params [:app.todo/id]}
      (fn [{::entity-db/keys [conn]} {:app.todo/keys [id]}]
-       (prn [conn id])
        (jdbc/execute! conn ["DELETE FROM app_todo WHERE id = ?"
                             id])
        {}))

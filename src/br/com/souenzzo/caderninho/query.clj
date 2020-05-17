@@ -20,14 +20,14 @@
        (let [edges (for [{:app_session/keys [id csrf]} (jdbc/execute! conn ["SELECT id, csrf FROM app_session"])]
                      {:app.session/id     id
                       :app.session/values (pr-str (session/csrf->values csrf))})]
-         {::all-sessions {:edn-query-language.pagination/edges edges}})))
+         {::all-sessions edges})))
    (pc/resolver
      `user/all-users
      {::pc/output [::all-users]}
      (fn [{::entity-db/keys [conn]} input]
        (let [edges (for [{:app_user/keys [id]} (jdbc/execute! conn ["SELECT id FROM app_user"])]
                      {:app.user/id id})]
-         {::all-users {:edn-query-language.pagination/edges edges}})))
+         {::all-users edges})))
    (pc/resolver
      `todo/all-todos
      {::pc/params [::session/current-username
@@ -59,10 +59,10 @@
                         (jdbc/execute! conn)
                         (map (comp (partial hash-map :app.todo/id)
                                    :app_todo/id)))]
-         {::all-todos {:edn-query-language.pagination/edges               edges
-                       ::session/current-username                         current-username
-                       :edn-query-language.pagination/elements-per-page   elements-per-page
-                       :edn-query-language.pagination/first-element-index first-element-index}})))
+         {::all-todos                                        edges
+          ::session/current-username                         current-username
+          :edn-query-language.pagination/elements-per-page   elements-per-page
+          :edn-query-language.pagination/first-element-index first-element-index})))
    (pc/resolver
      `mutation-prefix
      {::pc/output [::mutation-prefix]}

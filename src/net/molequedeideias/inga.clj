@@ -110,22 +110,15 @@
         join-node {:type         :join
                    :dispatch-key join-key
                    :key          join-key
-                   :children     (concat (->> (ident-params-ast indexes join-key)
-                                              :children
-                                              (remove (comp #{:edn-query-language.pagination/edges}
-                                                            :dispatch-key)))
-                                         [{:type         :join
-                                           :key          :edn-query-language.pagination/edges
-                                           :dispatch-key :edn-query-language.pagination/edges
-                                           :children     (sequence
-                                                           (comp
-                                                             (map (fn [{:keys [dispatch-key] :as node}]
-                                                                    (if-let [{::pc/keys [params]} (get index-mutations dispatch-key)]
-                                                                      (:children (eql/query->ast params))
-                                                                      [node])))
-                                                             cat
-                                                             (distinct-by :dispatch-key))
-                                                           (:children (eql/query->ast display-properties)))}])}]
+                   :children     (sequence
+                                   (comp
+                                     (map (fn [{:keys [dispatch-key] :as node}]
+                                            (if-let [{::pc/keys [params]} (get index-mutations dispatch-key)]
+                                              (:children (eql/query->ast params))
+                                              [node])))
+                                     cat
+                                     (distinct-by :dispatch-key))
+                                   (:children (eql/query->ast display-properties)))}]
     (-> {:type     :root
          :children (remove nil? [(when mutation-prefix-ident
                                    {:type         :prop
@@ -134,8 +127,10 @@
                                  {:type         :join
                                   :dispatch-key ident-key
                                   :key          eid-key
-                                  :children     [(cond-> join-node
-                                                         join-params (assoc :params join-params))]}
+                                  :children     (concat [(cond-> join-node
+                                                                 join-params (assoc :params join-params))]
+
+                                                        (:children (ident-params-ast indexes join-key)))}
                                  {:type         :prop
                                   :dispatch-key ::pc/indexes
                                   :key          ::pc/indexes}])}
@@ -207,10 +202,10 @@
                           (map (juxt val key))
                           params-as)
         {::pc/keys [index-mutations]} indexes
-        {:edn-query-language.pagination/keys [edges] :as el} (get-in data [(if (contains? default-params ident-key)
-                                                                             (find default-params ident-key)
-                                                                             ident-key)
-                                                                           join-key])
+        el (get-in data [(if (contains? default-params ident-key)
+                           (find default-params ident-key)
+                           ident-key)])
+        edges (get el join-key)
         {:keys [children]} (eql/query->ast display-properties)]
     {::forms         (remove
                        (comp empty? ::inputs)
