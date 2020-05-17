@@ -14,7 +14,10 @@
             [net.molequedeideias.inga-bootstrap.page :as bs.page]
             [net.molequedeideias.inga-bootstrap.ui :as bs.ui]
             [net.molequedeideias.inga.pedestal :as inga.pedestal]
-            [spec-coerce.core :as sc]))
+            [spec-coerce.core :as sc]
+            [io.pedestal.http.csrf :as csrf])
+  (:import (java.net URLEncoder)
+           (java.nio.charset StandardCharsets)))
 
 (set! *warn-on-reflection* true)
 
@@ -26,32 +29,29 @@
     ::inga.pedestal/route-name ::index
     ::inga/head                {}
     ::inga/map-params          {:edn-query-language.pagination/elements-per-page :n}
-    ::inga/body                {:>/all-todos {::inga/ident-key             :>/a
-                                              ::inga/display-properties    [:app.todo/id
-                                                                            :app.user/username
-                                                                            :app.todo/note
-                                                                            `todo/delete]
-                                              ::inga/mutation-prefix-ident ::query/mutation-prefix
-                                              ::inga/->query               `inga/content->table-query
-                                              ::inga/->data                `inga/data->table
-                                              ::inga/->ui                  `bs.ui/ui-table
-                                              ::inga/join-key              ::query/all-todos}
-                                :>/new-todo  {::inga/mutation              `todo/new-todo
-                                              ::inga/mutation-prefix-ident ::query/mutation-prefix
-                                              ::inga/->query               `inga/content->form-query
-                                              ::inga/->data                `inga/data->form
-                                              ::inga/->ui                  `bs.ui/ui-form}}
+    ::inga/body                {:>/all-todos {::inga/ident-key          :>/a
+                                              ::inga/display-properties [:app.todo/id
+                                                                         :app.user/username
+                                                                         :app.todo/note
+                                                                         `todo/delete]
+                                              ::inga/->query            `inga/content->table-query
+                                              ::inga/->data             `inga/data->table
+                                              ::inga/->ui               `bs.ui/ui-table
+                                              ::inga/join-key           ::query/all-todos}
+                                :>/new-todo  {::inga/mutation `todo/new-todo
+                                              ::inga/->query  `inga/content->form-query
+                                              ::inga/->data   `inga/data->form
+                                              ::inga/->ui     `bs.ui/ui-form}}
     ::inga/->query             `bs.page/->query
     ::inga/->data              `bs.page/->tree
     ::inga/->ui                `bs.page/->ui}
    {::inga.pedestal/path       "/sessions"
     ::inga.pedestal/route-name ::sessions
     ::inga/head                {}
-    ::inga/body                {:>/login    {::inga/mutation              `session/login
-                                             ::inga/mutation-prefix-ident ::query/mutation-prefix
-                                             ::inga/->query               `inga/content->form-query
-                                             ::inga/->data                `inga/data->form
-                                             ::inga/->ui                  `bs.ui/ui-form}
+    ::inga/body                {:>/login    {::inga/mutation `session/login
+                                             ::inga/->query  `inga/content->form-query
+                                             ::inga/->data   `inga/data->form
+                                             ::inga/->ui     `bs.ui/ui-form}
                                 :>/sessions {::inga/ident-key          :>/a
                                              ::inga/display-properties [:app.session/id
                                                                         :app.session/values
@@ -68,11 +68,10 @@
                                              ::inga/->data             `inga/data->table
                                              ::inga/->ui               `bs.ui/ui-table
                                              ::inga/join-key           ::query/all-users}
-                                :>/create   {::inga/mutation              `session/create-user
-                                             ::inga/mutation-prefix-ident ::query/mutation-prefix
-                                             ::inga/->query               `inga/content->form-query
-                                             ::inga/->data                `inga/data->form
-                                             ::inga/->ui                  `bs.ui/ui-form}}
+                                :>/create   {::inga/mutation `session/create-user
+                                             ::inga/->query  `inga/content->form-query
+                                             ::inga/->data   `inga/data->form
+                                             ::inga/->ui     `bs.ui/ui-form}}
     ::inga/->query             `bs.page/->query
     ::inga/->data              `bs.page/->tree
     ::inga/->ui                `bs.page/->ui}])
@@ -83,7 +82,13 @@
   (let [indexes (pc/register {}
                              (concat
                                pc/connect-resolvers
-                               [pc/index-explorer-resolver]
+                               [pc/index-explorer-resolver
+                                (pc/resolver
+                                  `mutation-prefix
+                                  {::pc/output [::inga/mutation-prefix]}
+                                  (fn [{::csrf/keys [anti-forgery-token]} _]
+                                    {::inga/mutation-prefix (str "/mutation/" (URLEncoder/encode (str anti-forgery-token)
+                                                                                                 (str StandardCharsets/UTF_8)))}))]
                                (query/register)
                                (user/register)
                                (todo/register)
@@ -120,11 +125,10 @@
                                                   page (cond-> (merge env page)
                                                                (not authed?) (update ::inga/body dissoc :>/create :>/new-todo)
                                                                show-login?
-                                                               (assoc ::inga/body {:>/login {::inga/mutation              `session/login
-                                                                                             ::inga/mutation-prefix-ident ::query/mutation-prefix
-                                                                                             ::inga/->query               `inga/content->form-query
-                                                                                             ::inga/->data                `inga/data->form
-                                                                                             ::inga/->ui                  `bs.ui/ui-form}}))]
+                                                               (assoc ::inga/body {:>/login {::inga/mutation `session/login
+                                                                                             ::inga/->query  `inga/content->form-query
+                                                                                             ::inga/->data   `inga/data->form
+                                                                                             ::inga/->ui     `bs.ui/ui-form}}))]
                                               (assoc page
                                                 ::inga.pedestal/query [{:>/body (bs.page/->query (merge env page
                                                                                                         {::inga/default-params (sc/coerce-structure query-params)}))}])))

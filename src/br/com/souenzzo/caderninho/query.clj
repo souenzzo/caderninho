@@ -5,10 +5,7 @@
             [br.com.souenzzo.caderninho.session :as session]
             [br.com.souenzzo.caderninho.user :as user]
             [br.com.souenzzo.caderninho.todo :as todo]
-            [com.wsscode.pathom.core :as p]
-            [io.pedestal.http.csrf :as csrf])
-  (:import (java.nio.charset StandardCharsets)
-           (java.net URLEncoder)))
+            [com.wsscode.pathom.core :as p]))
 
 
 (defn register
@@ -62,10 +59,4 @@
          {::all-todos                                        edges
           ::session/current-username                         current-username
           :edn-query-language.pagination/elements-per-page   elements-per-page
-          :edn-query-language.pagination/first-element-index first-element-index})))
-   (pc/resolver
-     `mutation-prefix
-     {::pc/output [::mutation-prefix]}
-     (fn [{::csrf/keys [anti-forgery-token]} _]
-       {::mutation-prefix (str "/mutation/" (URLEncoder/encode (str anti-forgery-token)
-                                                               (str StandardCharsets/UTF_8)))}))])
+          :edn-query-language.pagination/first-element-index first-element-index})))])
