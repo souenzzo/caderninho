@@ -5,22 +5,18 @@
   {::inga/query [::inga/label ::inga/name ::inga/type ::inga/value ::inga/hidden? ::inga/flex-end?]
    ::inga/ui    (fn [{::inga/keys [label name type value hidden? flex-end? possible-values multiple?]}]
                   [:label
-                   (cond-> {:style (cond-> {}
-                                           flex-end? (assoc :align-self "flex-end"))}
+                   (cond-> {}
                            hidden? (assoc :hidden true))
                    label
                    (if multiple?
-                     [:select {:class    "form-control"
-                               :multiple multiple?
+                     [:select {:multiple multiple?
                                :name     name}
                       (for [{::inga/keys [value selected?]} possible-values]
                         [:option {:selected selected?
                                   :value    value} value])]
                      [:input
-                      (cond-> {:class "form-control"
-                               :name  name}
+                      (cond-> {:name name}
                               type (assoc :type type)
-                              (= type "submit") (assoc :class "btn btn-primary")
                               value (assoc :value value))])])})
 
 (def ui-input (::inga/ui Input))
@@ -30,16 +26,14 @@
                  {::inga/inputs (::inga/query Input)}]
    ::inga/ui    (fn [{::inga/keys [action inputs label]}]
                   [:form
-                   (cond-> {:style {:display        "flex"
-                                    :padding        "3vw"
-                                    :flex-direction "column"}}
+                   (cond-> {}
                            action (assoc :method "POST"
                                          ;; :enctype "multipart/form-data"
                                          :action action))
                    (map ui-input inputs)
-                   (ui-input {::inga/flex-end? true
-                              ::inga/value     label
-                              ::inga/type      "submit"})])})
+                   (ui-input (cond-> {::inga/flex-end? true
+                                      ::inga/value     label
+                                      ::inga/type      "submit"}))])})
 
 
 (def ui-form (::inga/ui Form))
@@ -73,7 +67,6 @@
                   (list
                     (map ui-form forms)
                     [:table
-                     {:class "table table-striped"}
                      (ui-vs-table-body vs-table-body)]))})
 
 (def ui-table (::inga/ui Table))

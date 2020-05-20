@@ -149,14 +149,14 @@
                                                                         [:text {:x "1" :y "13" :fill "royalblue"}
                                                                          "\uD83D\uDCD6"]]))})]
                                              [:body
-                                              (bs.page/std-header {::inga/title        "Caderninho"
-                                                                   ::inga/current-user (-> (parser env [::session/current-username])
-                                                                                           ::session/current-username
-                                                                                           str)})
-                                              (bs.page/nav-menu {::inga/links [{::inga/href  "/"
-                                                                                ::inga/label "home"}
-                                                                               {::inga/href  "/sessions"
-                                                                                ::inga/label "sessions"}]})
+                                              (bs.page/header {::inga/title        "Caderninho"
+                                                               ::inga/current-user (-> (parser env [::session/current-username])
+                                                                                       ::session/current-username
+                                                                                       str)
+                                                               ::inga/links [{::inga/href  "/"
+                                                                              ::inga/label "home"}
+                                                                             {::inga/href  "/sessions"
+                                                                              ::inga/label "sessions"}]})
                                               (bs.page/->ui body)]])
      ::http/resource-path                 "META-INF/resources/webjars"
      ::http/secure-headers                {:content-security-policy-settings "script-src 'self'"}}))

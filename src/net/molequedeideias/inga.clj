@@ -178,6 +178,7 @@
                                                                (->label value)
                                                                value)}
                                                     mutation (assoc ::forms [{::action (str mutation-prefix "/" prop)
+                                                                              ::label  (str prop)
                                                                               ::inputs (for [param params]
                                                                                          {::value   (get el param)
                                                                                           ::name    (str (namespace param)

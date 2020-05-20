@@ -19,6 +19,8 @@
   :profiles {:test {:test-paths   ["dev" "test"]
                     :dependencies [[midje/midje "1.9.9"]
                                    [ubergraph "0.8.2"]
+                                   [clj-http/clj-http "3.10.1"]
+                                   [juxt/crux-core "20.05-1.8.3-alpha"]
                                    [datascript "0.18.11"]
                                    [clj-kondo/clj-kondo "2020.04.05"]
                                    [hickory/hickory "0.7.1"]]}}
