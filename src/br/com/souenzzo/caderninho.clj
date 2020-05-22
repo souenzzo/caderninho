@@ -122,7 +122,8 @@
                                                            (for [text texts]
                                                              [:div
                                                               [:textarea
-                                                               {:readOnly true}
+                                                               {:tabindex "-1"
+                                                                :readOnly true}
                                                                text]
                                                               [:textarea
                                                                {:form "translate"
