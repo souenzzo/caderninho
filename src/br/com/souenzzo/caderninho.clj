@@ -20,7 +20,7 @@
             [ring.middleware.multipart-params :as multipart-params]
             [clojure.java.io :as io]
             [clojure.edn :as edn])
-  (:import (java.net URLEncoder)
+  (:import (java.net URLEncoder URLDecoder)
            (java.nio.charset StandardCharsets)
            (org.apache.poi.xslf.usermodel XMLSlideShow XSLFSlide XSLFShape)))
 
@@ -126,7 +126,8 @@
                                                                text]
                                                               [:textarea
                                                                {:form "translate"
-                                                                :name text}
+                                                                :name (URLEncoder/encode (str text)
+                                                                                         (str StandardCharsets/UTF_8))}
                                                                text]])
                                                            [:form
                                                             {:id     "translate"
@@ -150,7 +151,11 @@
                                                 (assoc (http.body-params/default-parser-map)
                                                   #"^multipart/form-data;" multipart-params/multipart-params-request))
                                               (fn [{:keys [multipart-params headers]}]
-                                                (let [dict (dissoc multipart-params "pptx")
+                                                (let [dict (into {}
+                                                                 (for [[k v] (dissoc multipart-params "pptx")]
+                                                                   [(URLDecoder/decode (str k)
+                                                                                       (str StandardCharsets/UTF_8))
+                                                                    v]))
                                                       slide-show (some->> (get multipart-params "pptx")
                                                                           :tempfile io/input-stream XMLSlideShow.)]
                                                   (cond
@@ -159,6 +164,7 @@
                                                     (do
                                                       (doseq [shape (some->> slide-show .getSlides (mapcat #(.getShapes ^XSLFSlide %)))
                                                               :let [text (.getText shape)
+                                                                    _ (prn text (get dict text))
                                                                     traduction (get dict text)]
                                                               :when traduction]
                                                         (.setText shape traduction))
