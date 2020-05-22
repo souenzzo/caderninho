@@ -14,7 +14,8 @@
             [net.molequedeideias.inga :as inga]
             [net.molequedeideias.inga.transit :as transit]
             [ring.util.mime-type :as mime]
-            [spec-coerce.core :as sc]))
+            [spec-coerce.core :as sc]
+            [ring.middleware.multipart-params :as multipart-params]))
 
 (def ^:dynamic *request*)
 
@@ -179,7 +180,7 @@
 
 
 (defn default-interceptors
-  [{::keys [on-request read-token parser session-key-ident session-data-ident session-write-sym]
+  [{::keys [on-request read-token parser routes session-key-ident session-data-ident session-write-sym]
     :as    service-map}]
   (let [service-map (cond-> service-map
                             read-token (assoc-in [::http/enable-csrf :read-token]
@@ -190,7 +191,7 @@
                                       (session-store service-map)))
         {::keys [post-router-interceptors
                  pre-router-interceptors]} (std-interceptors service-map)
-        routes (into #{}
+        routes (into (set routes)
                      cat
                      [(page-routes service-map post-router-interceptors)
                       (mutation-routes service-map post-router-interceptors)

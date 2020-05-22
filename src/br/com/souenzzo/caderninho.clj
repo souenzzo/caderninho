@@ -15,14 +15,19 @@
             [net.molequedeideias.inga-bootstrap.ui :as bs.ui]
             [net.molequedeideias.inga.pedestal :as inga.pedestal]
             [spec-coerce.core :as sc]
-            [io.pedestal.http.csrf :as csrf])
+            [io.pedestal.http.csrf :as csrf]
+            [io.pedestal.http.body-params :as http.body-params]
+            [ring.middleware.multipart-params :as multipart-params]
+            [clojure.java.io :as io]
+            [clojure.edn :as edn])
   (:import (java.net URLEncoder)
-           (java.nio.charset StandardCharsets)))
+           (java.nio.charset StandardCharsets)
+           (org.apache.poi.xslf.usermodel XMLSlideShow XSLFSlide XSLFShape)))
 
 (set! *warn-on-reflection* true)
 
-(s/def :edn-query-language.pagination/first-element-index integer?)
-(s/def :edn-query-language.pagination/elements-per-page integer?)
+(s/def :edn-query-language.pagination/first-element-index nat-int?)
+(s/def :edn-query-language.pagination/elements-per-page nat-int?)
 
 (def pages
   [{::inga.pedestal/path       "/"
@@ -109,6 +114,65 @@
      ::inga.pedestal/form-mutation-prefix "/mutation/:csrf"
      ::inga.pedestal/indexes              indexes
      ::inga.pedestal/parser               parser
+
+     ::inga.pedestal/routes               #{["/scan" :get
+                                             (fn [{:keys [query-params]}]
+                                               (let [texts (some-> query-params :q edn/read-string)
+                                                     body [:div
+                                                           (for [text texts]
+                                                             [:div
+                                                              [:textarea
+                                                               {:readOnly true}
+                                                               text]
+                                                              [:textarea
+                                                               {:form "translate"
+                                                                :name text}
+                                                               text]])
+                                                           [:form
+                                                            {:id     "translate"
+                                                             :method "POST" :enctype "multipart/form-data"}
+                                                            [:input {:type "file" :name "pptx"}]
+                                                            [:input {:type  "submit"
+                                                                     :value (if (empty? texts)
+                                                                              "scan"
+                                                                              "translate")}]]]]
+                                                 {:body    (str (h/html
+                                                                  {:mode :html}
+                                                                  [:html
+                                                                   [:head]
+                                                                   [:body
+                                                                    body]]))
+                                                  :headers {"Content-Type" "text/html"}
+                                                  :status  200}))
+                                             :route-name ::scan2]
+                                            ["/scan" :post
+                                             [(http.body-params/body-params
+                                                (assoc (http.body-params/default-parser-map)
+                                                  #"^multipart/form-data;" multipart-params/multipart-params-request))
+                                              (fn [{:keys [multipart-params headers]}]
+                                                (let [dict (dissoc multipart-params "pptx")
+                                                      slide-show (some->> (get multipart-params "pptx")
+                                                                          :tempfile io/input-stream XMLSlideShow.)]
+                                                  (cond
+                                                    (and slide-show
+                                                         (not (empty? dict)))
+                                                    (do
+                                                      (doseq [shape (some->> slide-show .getSlides (mapcat #(.getShapes ^XSLFSlide %)))
+                                                              :let [text (.getText shape)
+                                                                    traduction (get dict text)]
+                                                              :when traduction]
+                                                        (.setText shape traduction))
+                                                      {:headers {"Content-Disposition" "attachment; filename=\"translated.pptx\""}
+                                                       :body    (fn [w]
+                                                                  (.write slide-show w))
+                                                       :status  200})
+                                                    :else {:headers {"Location" (-> headers (get "referer")
+                                                                                    (str "?q=" (URLEncoder/encode (pr-str (some->> slide-show .getSlides (mapcat #(.getShapes %)) (map #(.getText %))))
+                                                                                                                  (str StandardCharsets/UTF_8))))}
+                                                           :status  303})))]
+                                             :route-name ::scan]}
+
+
      ::inga.pedestal/read-token           ::session/read-token
      ::inga.pedestal/session-key-ident    ::session/session-key
      ::inga.pedestal/session-data-ident   ::session/session-values
@@ -153,10 +217,10 @@
                                                                ::inga/current-user (-> (parser env [::session/current-username])
                                                                                        ::session/current-username
                                                                                        str)
-                                                               ::inga/links [{::inga/href  "/"
-                                                                              ::inga/label "home"}
-                                                                             {::inga/href  "/sessions"
-                                                                              ::inga/label "sessions"}]})
+                                                               ::inga/links        [{::inga/href  "/"
+                                                                                     ::inga/label "home"}
+                                                                                    {::inga/href  "/sessions"
+                                                                                     ::inga/label "sessions"}]})
                                               (bs.page/->ui body)]])
      ::http/resource-path                 "META-INF/resources/webjars"
      ::http/secure-headers                {:content-security-policy-settings "script-src 'self'"}}))
