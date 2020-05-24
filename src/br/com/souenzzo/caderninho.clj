@@ -78,72 +78,6 @@
     ::inga/->data              `bs.page/->tree
     ::inga/->ui                `bs.page/->ui}])
 
-
-(def routes
-  #{["/scan" :get
-     (fn [{:keys [query-params]}]
-       (let [texts (some-> query-params :q edn/read-string)
-             body [:div
-                   (for [text texts]
-                     [:div
-                      [:textarea
-                       {:tabindex "-1"
-                        :readOnly true}
-                       text]
-                      [:textarea
-                       {:form "translate"
-                        :name (URLEncoder/encode (str text)
-                                                 (str StandardCharsets/UTF_8))}
-                       text]])
-                   [:form
-                    {:id     "translate"
-                     :method "POST" :enctype "multipart/form-data"}
-                    [:input {:type "file" :name "pptx"}]
-                    [:input {:type  "submit"
-                             :value (if (empty? texts)
-                                      "scan"
-                                      "translate")}]]]]
-         {:body    (str (h/html
-                          {:mode :html}
-                          [:html
-                           [:head]
-                           [:body
-                            body]]))
-          :headers {"Content-Type" "text/html"}
-          :status  200}))
-     :route-name ::scan2]
-    ["/scan" :post
-     [(http.body-params/body-params
-        (assoc (http.body-params/default-parser-map)
-          #"^multipart/form-data;" multipart-params/multipart-params-request))
-      (fn [{:keys [multipart-params headers]}]
-        (let [dict (into {}
-                         (for [[k v] (dissoc multipart-params "pptx")]
-                           [(URLDecoder/decode (str k)
-                                               (str StandardCharsets/UTF_8))
-                            v]))
-              slide-show (some->> (get multipart-params "pptx")
-                                  :tempfile io/input-stream XMLSlideShow.)]
-          (cond
-            (and slide-show
-                 (not (empty? dict)))
-            (do
-              (doseq [shape (some->> slide-show .getSlides (mapcat #(.getShapes ^XSLFSlide %)))
-                      :let [text (.getText shape)
-                            _ (prn text (get dict text))
-                            traduction (get dict text)]
-                      :when traduction]
-                (.setText shape traduction))
-              {:headers {"Content-Disposition" "attachment; filename=\"translated.pptx\""}
-               :body    (fn [w]
-                          (.write slide-show w))
-               :status  200})
-            :else {:headers {"Location" (-> headers (get "referer")
-                                            (str "?q=" (URLEncoder/encode (pr-str (some->> slide-show .getSlides (mapcat #(.getShapes %)) (map #(.getText %))))
-                                                                          (str StandardCharsets/UTF_8))))}
-                   :status  303})))]
-     :route-name ::scan]})
-
 (defn service
   [env]
   (let [indexes (pc/register {}
@@ -179,10 +113,6 @@
      ::inga.pedestal/form-mutation-prefix "/mutation/:csrf"
      ::inga.pedestal/indexes              indexes
      ::inga.pedestal/parser               parser
-
-     ::inga.pedestal/routes               routes
-
-
      ::inga.pedestal/read-token           ::session/read-token
      ::inga.pedestal/session-key-ident    ::session/session-key
      ::inga.pedestal/session-data-ident   ::session/session-values
