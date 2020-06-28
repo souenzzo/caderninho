@@ -9,6 +9,7 @@
                  [io.pedestal/pedestal.jetty "0.5.7"]
                  [io.pedestal/pedestal.service "0.5.7"]
                  [org.clojure/clojure "1.10.1"]
+                 [clj-http/clj-http "3.10.1"]
                  [org.postgresql/postgresql "42.2.12"]
                  [org.slf4j/slf4j-jdk14 "2.0.0-alpha1"]
                  [org.webjars.npm/bootstrap "4.4.1"]

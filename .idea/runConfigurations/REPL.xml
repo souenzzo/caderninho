@@ -7,6 +7,7 @@
     <setting name="parameters" value="" />
     <environment name="JDBC_DATABASE_URL" value="jdbc:postgresql://127.0.0.1:5432/caderninho?user=postgres&amp;password=postgres" />
     <environment name="PORT" value="8080" />
+    <environment name="TELEGRAM_BOT_TOKEN" value="$TELEGRAM_API_TOKEN$" />
     <setting name="workingDir" value="$PROJECT_DIR$" />
     <setting name="profiles" value="" />
     <setting name="aliases" value="" />
