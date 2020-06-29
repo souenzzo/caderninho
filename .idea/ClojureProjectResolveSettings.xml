@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-    <component name="ClojureProjectResolveSettings">
-        <item key="next.jdbc/with-transaction" resolves-as="clojure.core/let"/>
-        <currentScheme>PROJECT</currentScheme>
-    </component>
+  <component name="ClojureProjectResolveSettings">
+    <item key="com.wsscode.pathom.connect/defresolver" resolves-as="clojure.core/defn" />
+    <item key="com.wsscode.pathom.connect/defmutation" resolves-as="clojure.core/defn" />
+    <item key="next.jdbc/with-transaction" resolves-as="clojure.core/let" />
+    <currentScheme>PROJECT</currentScheme>
+  </component>
 </project>
