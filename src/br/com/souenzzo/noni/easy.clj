@@ -3,12 +3,26 @@
             [io.pedestal.http.route :as route]
             [com.wsscode.pathom.connect :as pc]
             [com.wsscode.pathom.core :as p]
-            [io.pedestal.log :as log]))
+            [io.pedestal.log :as log]
+            [hiccup2.core :as h]))
 
-(defn tx!
+(defn dispatch!
   [{:keys [parser]
     :as   env} tx]
   (parser env tx))
+
+
+(def html-response
+  {:name  ::html-response
+   :leave (fn [{:keys [response]
+                :as   ctx}]
+            (assoc ctx :response
+                       (-> response
+                           (update :body #(str (h/html
+                                                 {:lang :html}
+                                                 (h/raw "<!DOCTYPE html>")
+                                                 %)))
+                           (update :headers assoc "Content-Type" "text/html; charset=utf-8"))))})
 
 (defn expand-routes
   [{::pc/keys [register]
@@ -28,31 +42,36 @@
         +env {:name  ::+env
               :enter (fn [ctx]
                        (update ctx :request merge env))}
-        routes (for [{::keys [path description]} (::routes (parser env [::routes]))]
-                 [path :get [+env
-                             (fn [req]
-                               {:body   (pr-str
-                                          (tx! req [description]))
-                                :status 200})]
-                  :route-name description])
+        {::keys [routes]} (dispatch! env [::routes])
+        pages (for [{::keys [path description]} routes]
+                [path :get [+env
+                            html-response
+                            (fn [req]
+                              {:body   [:html
+                                        [:head
+                                         [:title "OK"]]
+                                        [:body
+                                         [:code (pr-str (dispatch! req [description]))]]]
+                               :status 200})]
+                 :route-name description])
         mutations (for [[sym data] index-mutations]
                     [(str "/" sym)
                      :post [+env
-                            (fn [_]
-                              {:body   "WIP"
-                               :status 200})]
+                            (fn [{:keys [tx]
+                                  :as   env}]
+                              (let [result (dispatch! env tx)]
+                                (log/info :result result)
+                                {:body   "WIP"
+                                 :status 200}))]
                      :route-name (keyword sym)])]
-    (route/expand-routes (into #{}
-                               cat
-                               [routes
-                                mutations]))))
-
-
-
+    (-> (into #{}
+              cat
+              [pages
+               mutations])
+        route/expand-routes)))
 
 (defonce state
          (atom {}))
-
 
 (defn start
   [{::http/keys [port]
@@ -83,7 +102,7 @@
 
 (pc/defresolver index [_ _]
   {::pc/output [::index]}
-  {::index [{::mutation `app.note/new-note}
+  {::index [{::mutation 'app.note/new-note}
             {::display-properties [:app.note/text]
              ::join-key           :app.note/all-notes}]})
 
