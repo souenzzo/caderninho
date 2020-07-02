@@ -4,7 +4,9 @@
             [com.wsscode.pathom.connect :as pc]
             [com.wsscode.pathom.core :as p]
             [io.pedestal.log :as log]
-            [hiccup2.core :as h]))
+            [hiccup2.core :as h]
+            [edn-query-language.core :as eql]
+            [io.pedestal.http.body-params :as body-params]))
 
 (defn dispatch!
   [{:keys [parser]
@@ -18,19 +20,102 @@
                 :as   ctx}]
             (assoc ctx :response
                        (-> response
-                           (update :body #(str (h/html
-                                                 {:lang :html}
-                                                 (h/raw "<!DOCTYPE html>")
-                                                 %)))
+                           (update :body #(str
+                                            (h/html
+                                              {:lang :html}
+                                              (h/raw "<!DOCTYPE html>")
+                                              %)))
                            (update :headers assoc "Content-Type" "text/html; charset=utf-8"))))})
+
+(def noni-reg
+  [(pc/resolver `query
+                {::pc/params [::display-properties
+                              ::join-key]
+                 ::pc/output [::query]}
+                (fn [env input]
+                  (let [{::keys [display-properties
+                                 join-key]} (p/params env)
+                        children (:children (eql/query->ast display-properties))
+                        ast {:type         :join
+                             :dispatch-key join-key
+                             :key          join-key
+                             :children     (remove (comp #{:call} :type)
+                                                   children)}]
+                    {::query {::ast ast
+                              ::ui  (fn [data]
+                                      (let [vs (get data join-key)]
+                                        [:table
+                                         [:thead
+                                          (for [{:keys [dispatch-key]} children]
+                                            [:tr (pr-str dispatch-key)])]
+                                         [:tbody
+                                          (for [v vs]
+                                            [:tr
+                                             (for [{:keys [dispatch-key params]} children]
+                                               [:td
+                                                (if (symbol? dispatch-key)
+                                                  (let [{::keys [hidden]} params
+                                                        {::pc/keys [params]} (pc/mutation-data env dispatch-key)]
+                                                    [:form
+                                                     {:action (str dispatch-key)
+                                                      :method "POST"}
+                                                     (for [{:keys [dispatch-key]} (-> params eql/query->ast :children)]
+                                                       [:input
+                                                        (cond-> {:name (str (namespace dispatch-key)
+                                                                            "/"
+                                                                            (name dispatch-key))}
+                                                                (contains? v dispatch-key) (assoc :value (get v dispatch-key))
+                                                                (contains? hidden dispatch-key) (assoc :hidden true))])
+                                                     [:input {:type  "submit"
+                                                              :value (str dispatch-key)}]])
+                                                  (pr-str (get v dispatch-key)))])])]]))}})))
+   (pc/resolver `mutation
+                {::pc/params [::sym]
+                 ::pc/output [::mutation]}
+                (fn [env input]
+                  (let [{::keys [sym]} (p/params env)
+                        {::pc/keys [params]} (pc/mutation-data env sym)]
+                    {::mutation {::ui (fn [data]
+                                        [:form
+                                         {:action (str sym)
+                                          :method "POST"}
+                                         (for [{:keys [dispatch-key]} (-> params
+                                                                          eql/query->ast
+                                                                          :children)]
+                                           [:label
+                                            (pr-str dispatch-key)
+                                            [:input {:name (str (namespace dispatch-key)
+                                                                "/"
+                                                                (name dispatch-key))}]])
+                                         [:input {:type  "submit"
+                                                  :value (str sym)}]])}})))
+   (pc/resolver `page-body
+                {::pc/input  #{::route-name}
+                 ::pc/output [::page-body]}
+                (fn [env {::keys [route-name]}]
+                  (let [data-query (get (dispatch! env [route-name]) route-name)
+                        result (dispatch! env data-query)
+                        data-query2 (->> (keep ::ast (vals result))
+                                         (hash-map :type :root :children)
+                                         eql/ast->query)
+                        result2 (dispatch! env data-query2)]
+                    {::page-body [:html
+                                  [:head
+                                   [:title (str route-name)]]
+                                  [:body
+                                   (for [[k {::keys [ui]}] result
+                                         :when ui]
+                                     (ui result2))]]})))])
 
 (defn expand-routes
   [{::pc/keys [register]
     :as       service-map}]
   (let [{::pc/keys [index-mutations]
-         :as       indexes} (pc/register {} register)
+         :as       indexes} (pc/register {} (concat noni-reg
+                                                    register))
         ref-indexes (atom indexes)
-        parser (p/parser {::p/plugins [(pc/connect-plugin {::pc/indexes ref-indexes})]})
+        parser (p/parser {::p/plugins [(pc/connect-plugin {::pc/indexes ref-indexes})]
+                          ::p/mutate  pc/mutate})
         env (assoc service-map
               ::pc/indexes indexes
               ::p/reader [p/map-reader
@@ -43,26 +128,26 @@
               :enter (fn [ctx]
                        (update ctx :request merge env))}
         {::keys [routes]} (dispatch! env [::routes])
-        pages (for [{::keys [path description]} routes]
+        pages (for [{::keys [path route-name]} routes]
                 [path :get [+env
                             html-response
-                            (fn [req]
-                              {:body   [:html
-                                        [:head
-                                         [:title "OK"]]
-                                        [:body
-                                         [:code (pr-str (dispatch! req [description]))]]]
+                            (fn [env]
+                              {:body   (-> (dispatch! env [{[::route-name route-name] [::page-body]}])
+                                           (get-in [[::route-name route-name]
+                                                    ::page-body]))
                                :status 200})]
-                 :route-name description])
+                 :route-name route-name])
         mutations (for [[sym data] index-mutations]
                     [(str "/" sym)
                      :post [+env
-                            (fn [{:keys [tx]
-                                  :as   env}]
-                              (let [result (dispatch! env tx)]
+                            (body-params/body-params)
+                            (fn [{:keys [form-params] :as env}]
+                              (let [tx `[(~sym ~form-params)]
+                                    _ (log/info :tx tx)
+                                    result (dispatch! env tx)]
                                 (log/info :result result)
-                                {:body   "WIP"
-                                 :status 200}))]
+                                {:headers {"Location" (-> env :headers (get "referer"))}
+                                 :status  301}))]
                      :route-name (keyword sym)])]
     (-> (into #{}
               cat
@@ -89,30 +174,48 @@
                    (assoc st
                      port (http/start service))))))
 
-(pc/defmutation new-note [_ {:app.note/keys [text]}]
+;; demo application
+
+(pc/defmutation new-note [{::keys [note-db]} {:app.note/keys [text]}]
   {::pc/sym    'app.note/new-note
    ::pc/params [:app.note/text]}
-  (log/info :text text)
+  (swap! note-db conj {:app.note/text text})
   {})
 
-(pc/defresolver all-notes [_ _]
+(pc/defmutation delete-note [{::keys [note-db]} {:app.note/keys [text]}]
+  {::pc/sym    'app.note/delete-note
+   ::pc/params [:app.note/text]}
+  (swap! note-db (fn [notes]
+                   (remove (comp #{text} :app.note/text)
+                           notes)))
+  {})
+
+(pc/defresolver all-notes [{::keys [note-db]} _]
   {::pc/output [:app.note/all-notes]}
-  {:app.note/all-notes [{:app.note/text "a"}
-                        {:app.note/text "b"}]})
+  {:app.note/all-notes @note-db})
 
 (pc/defresolver index [_ _]
   {::pc/output [::index]}
-  {::index [{::mutation 'app.note/new-note}
-            {::display-properties [:app.note/text]
-             ::join-key           :app.note/all-notes}]})
+  {::index `[(::mutation
+               {::sym ~'app.note/new-note})
+             (::query
+               {::display-properties [:app.note/text
+                                      (~'app.note/delete-note {::hidden #{:app.note/text}})]
+                ::join-key           :app.note/all-notes})]})
 
 (pc/defresolver routes [_ _]
   {::pc/output [::routes]}
-  {::routes [{::path        "/"
-              ::description ::index}]})
+  {::routes [{::path       "/"
+              ::route-name ::index}]})
+
+(defonce note-db (atom [{:app.note/text "a"}
+                        {:app.note/text "b"}]))
+
 (defn -main
   []
-  (start {::pc/register [new-note
+  (start {::note-db     note-db
+          ::pc/register [new-note
+                         delete-note
                          all-notes
                          index
                          routes]}))
