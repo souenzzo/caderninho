@@ -174,7 +174,34 @@
                    (assoc st
                      port (http/start service))))))
 
-;; demo application
+;;;;;;;;;;;;;;;;;;;;
+;; aplicação demo ;;
+;;;;;;;;;;;;;;;;;;;;
+
+;; ** parte da ui **
+
+;; roteador do APP
+(pc/defresolver routes [_ _]
+  {::pc/output [::routes]}
+  {::routes [;; Exite uma rota `/` e ela está descrita em `::index`
+             {::path       "/"
+              ::route-name ::index}]})
+
+;; descrição de `::index`
+(pc/defresolver index [_ _]
+  {::pc/output [::index]}
+  {::index `[;; vou exibir um com a mutation `app.note/new-note` e seus respectivos parametros
+             (::mutation
+               {::sym ~'app.note/new-note})
+             ;; vou exibir o resultado de uma query em formato de tabela
+             (::query
+               {::display-properties [;; primeira coluna
+                                      :app.note/text
+                                      ;; segunda coluna vai ser uma mutation
+                                      (~'app.note/delete-note {::hidden #{:app.note/text}})]
+                ::join-key           :app.note/all-notes})]})
+
+;; ** parte da 'regra de negocio' **
 
 (pc/defmutation new-note [{::keys [note-db]} {:app.note/keys [text]}]
   {::pc/sym    'app.note/new-note
@@ -194,19 +221,7 @@
   {::pc/output [:app.note/all-notes]}
   {:app.note/all-notes @note-db})
 
-(pc/defresolver index [_ _]
-  {::pc/output [::index]}
-  {::index `[(::mutation
-               {::sym ~'app.note/new-note})
-             (::query
-               {::display-properties [:app.note/text
-                                      (~'app.note/delete-note {::hidden #{:app.note/text}})]
-                ::join-key           :app.note/all-notes})]})
-
-(pc/defresolver routes [_ _]
-  {::pc/output [::routes]}
-  {::routes [{::path       "/"
-              ::route-name ::index}]})
+;; 'main' da app
 
 (defonce note-db (atom [{:app.note/text "a"}
                         {:app.note/text "b"}]))
