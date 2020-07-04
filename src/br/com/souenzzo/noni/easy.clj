@@ -28,10 +28,10 @@
                            (update :headers assoc "Content-Type" "text/html; charset=utf-8"))))})
 
 (def noni-reg
-  [(pc/resolver `query
+  [(pc/resolver `table
                 {::pc/params [::display-properties
                               ::join-key]
-                 ::pc/output [::query]}
+                 ::pc/output [::table]}
                 (fn [env input]
                   (let [{::keys [display-properties
                                  join-key]} (p/params env)
@@ -41,13 +41,14 @@
                              :key          join-key
                              :children     (remove (comp #{:call} :type)
                                                    children)}]
-                    {::query {::ast ast
+                    {::table {::ast ast
                               ::ui  (fn [data]
                                       (let [vs (get data join-key)]
                                         [:table
                                          [:thead
-                                          (for [{:keys [dispatch-key]} children]
-                                            [:tr (pr-str dispatch-key)])]
+                                          [:tr
+                                           (for [{:keys [dispatch-key]} children]
+                                             [:th (pr-str dispatch-key)])]]
                                          [:tbody
                                           (for [v vs]
                                             [:tr
@@ -69,26 +70,26 @@
                                                      [:input {:type  "submit"
                                                               :value (str dispatch-key)}]])
                                                   (pr-str (get v dispatch-key)))])])]]))}})))
-   (pc/resolver `mutation
+   (pc/resolver `form
                 {::pc/params [::sym]
-                 ::pc/output [::mutation]}
+                 ::pc/output [::form]}
                 (fn [env input]
                   (let [{::keys [sym]} (p/params env)
                         {::pc/keys [params]} (pc/mutation-data env sym)]
-                    {::mutation {::ui (fn [data]
-                                        [:form
-                                         {:action (str sym)
-                                          :method "POST"}
-                                         (for [{:keys [dispatch-key]} (-> params
-                                                                          eql/query->ast
-                                                                          :children)]
-                                           [:label
-                                            (pr-str dispatch-key)
-                                            [:input {:name (str (namespace dispatch-key)
-                                                                "/"
-                                                                (name dispatch-key))}]])
-                                         [:input {:type  "submit"
-                                                  :value (str sym)}]])}})))
+                    {::form {::ui (fn [data]
+                                    [:form
+                                     {:action (str sym)
+                                      :method "POST"}
+                                     (for [{:keys [dispatch-key]} (-> params
+                                                                      eql/query->ast
+                                                                      :children)]
+                                       [:label
+                                        (pr-str dispatch-key)
+                                        [:input {:name (str (namespace dispatch-key)
+                                                            "/"
+                                                            (name dispatch-key))}]])
+                                     [:input {:type  "submit"
+                                              :value (str sym)}]])}})))
    (pc/resolver `page-body
                 {::pc/input  #{::route-name}
                  ::pc/output [::page-body]}
@@ -101,11 +102,19 @@
                         result2 (dispatch! env data-query2)]
                     {::page-body [:html
                                   [:head
+                                   #_[:link {:rel  "stylesheet"
+                                             :href "https://unpkg.com/mvp.css"}]
+                                   #_[:link {:rel  "stylesheet"
+                                             :href "https://www.w3.org/StyleSheets/Core/Modernist"}]
+                                   #_[:link {:rel  "stylesheet"
+                                             :href "https://cdn.jsdelivr.net/gh/kognise/water.css@latest/dist/light.min.css"}]
                                    [:title (str route-name)]]
                                   [:body
                                    (for [[k {::keys [ui]}] result
                                          :when ui]
-                                     (ui result2))]]})))])
+                                     [:section
+                                      {:style {:padding "1rem"}}
+                                      (ui result2)])]]})))])
 
 (defn expand-routes
   [{::pc/keys [register]
@@ -191,10 +200,10 @@
 (pc/defresolver index [_ _]
   {::pc/output [::index]}
   {::index `[;; vou exibir um com a mutation `app.note/new-note` e seus respectivos parametros
-             (::mutation
-               {::sym ~'app.note/new-note})
+             (::form
+               ~{::sym 'app.note/new-note})
              ;; vou exibir o resultado de uma query em formato de tabela
-             (::query
+             (::table
                {::display-properties [;; primeira coluna
                                       :app.note/text
                                       ;; segunda coluna vai ser uma mutation
