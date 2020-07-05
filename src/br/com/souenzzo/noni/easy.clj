@@ -6,11 +6,14 @@
             [io.pedestal.log :as log]
             [hiccup2.core :as h]
             [edn-query-language.core :as eql]
-            [io.pedestal.http.body-params :as body-params]))
+            [io.pedestal.http.body-params :as body-params]
+            [spec-coerce.core :as sc]
+            [clojure.spec.alpha :as s]))
 
 (defn dispatch!
   [{:keys [parser]
     :as   env} tx]
+  (log/info :dispatch! tx)
   (parser env tx))
 
 
@@ -95,8 +98,17 @@
                  ::pc/output [::page-body]}
                 (fn [env {::keys [route-name]}]
                   (let [data-query (get (dispatch! env [route-name]) route-name)
-                        result (dispatch! env data-query)
-                        data-query2 (->> (keep ::ast (vals result))
+
+                        result (dispatch! env (-> data-query
+                                                  eql/query->ast
+                                                  (update :children (partial map-indexed
+                                                                             (fn [idx node]
+                                                                               (assoc-in node [:params :pathom/as] (keyword (str "section-" idx))))))
+                                                  eql/ast->query))
+                        data-query2 (->> result
+                                         (sort-by key)
+                                         vals
+                                         (keep ::ast)
                                          (hash-map :type :root :children)
                                          eql/ast->query)
                         result2 (dispatch! env data-query2)]
@@ -151,7 +163,7 @@
                      :post [+env
                             (body-params/body-params)
                             (fn [{:keys [form-params] :as env}]
-                              (let [tx `[(~sym ~form-params)]
+                              (let [tx `[(~sym ~(sc/coerce-structure form-params))]
                                     _ (log/info :tx tx)
                                     result (dispatch! env tx)]
                                 (log/info :result result)
@@ -235,11 +247,81 @@
 (defonce note-db (atom [{:app.note/text "a"}
                         {:app.note/text "b"}]))
 
+#_(defn -main
+    []
+    (start {::note-db     note-db
+            ::pc/register [new-note
+                           delete-note
+                           all-notes
+                           index
+                           routes]}))
+
+
+;; robots vs dinos
+
+(pc/defresolver routes [_ _]
+  {::pc/output [::routes]}
+  {::routes [;; Exite uma rota `/` e ela está descrita em `::index`
+             {::path       "/"
+              ::route-name ::index}]})
+
+;; descrição de `::index`
+(pc/defresolver index [{::keys [stage]} _]
+  {::pc/output [::index]}
+  (let [{:app.stage/keys [size]} @stage]
+    {::index `[(::form {::sym ~'app.being/add-dino})
+               (::form {::sym ~'app.being/add-robot})
+               (::table {::display-properties ~(for [i (range size)]
+                                                 (keyword (str "x" i)))
+                         ::join-key           :app.stage/beings-table})]}))
+
+(pc/defmutation add-dino [{::keys [stage]} {:app.being/keys [x y]}]
+  {::pc/sym    'app.being/add-dino
+   ::pc/params [:app.being/x
+                :app.being/y]}
+  (swap! stage assoc-in [:app.stage/beings [x y]] {:app.being/dino? true
+                                                   :app.being/x     x
+                                                   :app.being/y     y})
+  {})
+
+(s/def :app.being/x int?)
+(s/def :app.being/y int?)
+
+(pc/defmutation add-robot [{::keys [stage]} {:app.being/keys [x y direction]}]
+  {::pc/sym    'app.being/add-robot
+   ::pc/params [:app.being/x
+                :app.being/y]}
+  (swap! stage assoc-in [:app.stage/beings [x y]] {:app.being/robot?    true
+                                                   :app.being/direction direction
+                                                   :app.being/x         x
+                                                   :app.being/y         y})
+  {})
+
+
+(pc/defresolver beings-table [{::keys [stage]} _]
+  {::pc/output [:app.stage/beings-table]}
+  (let [{:app.stage/keys [size beings]} @stage]
+    {:app.stage/beings-table (for [i (range size)]
+                               (into {}
+                                     (for [j (range size)
+                                           :let [{:app.being/keys [dino?] :as being} (get beings [i j])]]
+                                       [(keyword (str "x" j)) (cond
+                                                                dino? "D"
+                                                                :else (pr-str being))])))}))
+
+;; 'main' da app
+
+(def stage (atom {:app.stage/size   5
+                  :app.stage/beings {[3 1] {:app.being/dino? true
+                                            :app.being/x     3
+                                            :app.being/y     1}}}))
+
 (defn -main
   []
-  (start {::note-db     note-db
-          ::pc/register [new-note
-                         delete-note
-                         all-notes
+  (start {::stage       stage
+          ::pc/register [beings-table
                          index
+                         add-robot
+                         add-dino
                          routes]}))
+
