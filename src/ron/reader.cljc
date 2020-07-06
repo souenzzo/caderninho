@@ -159,7 +159,9 @@
         (contains? #{end-of-coll} dispatch-char) (assoc (do-next env)
                                                    ::value (if kv?
                                                              (into {} (persistent! coll))
-                                                             (persistent! coll)))
+                                                             (tagged-literal
+                                                               with-namespace
+                                                               (persistent! coll))))
         :else (let [{key ::value
                      :as env} (read-impl env)
                     {comma-or-colon ::dispatch-char
